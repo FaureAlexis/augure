@@ -62,8 +62,26 @@ const AppConfigSchema = z.object({
   tools: z.object({
     webSearch: z
       .object({
-        provider: z.enum(["tavily", "searxng"]),
-        apiKey: z.string(),
+        provider: z.enum(["tavily", "exa", "searxng"]),
+        apiKey: z.string().optional(),
+        baseUrl: z.string().optional(),
+        maxResults: z.number().int().positive().optional(),
+      })
+      .optional(),
+    http: z
+      .object({
+        defaultHeaders: z.record(z.string(), z.string()).optional(),
+        presets: z
+          .record(
+            z.string(),
+            z.object({
+              baseUrl: z.string(),
+              headers: z.record(z.string(), z.string()),
+            }),
+          )
+          .optional(),
+        timeoutMs: z.number().int().positive().optional(),
+        maxResponseBytes: z.number().int().positive().optional(),
       })
       .optional(),
     email: z

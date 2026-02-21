@@ -60,11 +60,28 @@ export interface SandboxConfig {
   };
 }
 
+export interface WebSearchConfig {
+  provider: "tavily" | "exa" | "searxng";
+  apiKey?: string;
+  baseUrl?: string;
+  maxResults?: number;
+}
+
+export interface HttpPreset {
+  baseUrl: string;
+  headers: Record<string, string>;
+}
+
+export interface HttpConfig {
+  defaultHeaders?: Record<string, string>;
+  presets?: Record<string, HttpPreset>;
+  timeoutMs?: number;
+  maxResponseBytes?: number;
+}
+
 export interface ToolsConfig {
-  webSearch?: {
-    provider: "tavily" | "searxng";
-    apiKey: string;
-  };
+  webSearch?: WebSearchConfig;
+  http?: HttpConfig;
   email?: {
     imap: { host: string; port: number; user: string; password: string };
     smtp: { host: string; port: number; user: string; password: string };
