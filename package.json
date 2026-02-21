@@ -18,13 +18,15 @@
     "clean": "turbo run clean",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.3.0",
     "eslint": "^10.0.1",
+    "husky": "^9.1.7",
     "msw": "^2.12.10",
     "turbo": "^2.8.10",
     "typescript": "^5.9.3",
