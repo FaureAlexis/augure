@@ -1,7 +1,6 @@
 import type { NativeTool } from "@augure/types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
 const MAX_OUTPUT_CHARS = 4000;
 
 export const httpTool: NativeTool = {
