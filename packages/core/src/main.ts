@@ -156,9 +156,3 @@ export async function startAgent(configPath: string): Promise<void> {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }
-
-const configPath = process.argv[2] ?? "./config/augure.json5";
-startAgent(configPath).catch((err) => {
-  console.error("[augure] Fatal error:", err);
-  process.exit(1);
-});
