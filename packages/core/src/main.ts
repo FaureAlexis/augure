@@ -7,6 +7,8 @@ import {
   memoryReadTool,
   memoryWriteTool,
   scheduleTool,
+  webSearchTool,
+  httpTool,
 } from "@augure/tools";
 import {
   FileMemoryStore,
@@ -63,6 +65,8 @@ export async function startAgent(configPath: string): Promise<void> {
   tools.register(memoryReadTool);
   tools.register(memoryWriteTool);
   tools.register(scheduleTool);
+  tools.register(webSearchTool);
+  tools.register(httpTool);
 
   const jobStorePath = resolve(configPath, "..", "jobs.json");
   const jobStore = new JobStore(jobStorePath);
