@@ -1,0 +1,30 @@
+{
+  "name": "@augure/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@augure/channels": "workspace:*",
+    "@augure/memory": "workspace:*",
+    "@augure/scheduler": "workspace:*",
+    "@augure/tools": "workspace:*",
+    "@augure/types": "workspace:*",
+    "json5": "^2.2.3",
+    "zod": "^4.3.6"
+  }
+}

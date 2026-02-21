@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../types" },
+    { "path": "../tools" },
+    { "path": "../memory" },
+    { "path": "../channels" },
+    { "path": "../scheduler" }
+  ]
+}

@@ -1,0 +1,68 @@
+import { createTask, validate, type ScheduledTask } from "node-cron";
+import type { Job, Scheduler } from "@augure/types";
+
+type JobTriggerHandler = (job: Job) => void | Promise<void>;
+
+export class CronScheduler implements Scheduler {
+  private jobs = new Map<string, Job>();
+  private tasks = new Map<string, ScheduledTask>();
+  private handlers: JobTriggerHandler[] = [];
+
+  onJobTrigger(handler: JobTriggerHandler): void {
+    this.handlers.push(handler);
+  }
+
+  addJob(job: Job): void {
+    if (!validate(job.cron)) {
+      throw new Error(`Invalid cron expression: ${job.cron}`);
+    }
+
+    this.jobs.set(job.id, job);
+
+    if (job.enabled) {
+      const task = createTask(job.cron, () => {
+        void this.executeHandlers(job);
+      });
+      this.tasks.set(job.id, task);
+    }
+  }
+
+  removeJob(id: string): void {
+    const task = this.tasks.get(id);
+    if (task) {
+      task.stop();
+      this.tasks.delete(id);
+    }
+    this.jobs.delete(id);
+  }
+
+  listJobs(): Job[] {
+    return Array.from(this.jobs.values());
+  }
+
+  async triggerJob(id: string): Promise<void> {
+    const job = this.jobs.get(id);
+    if (!job) {
+      throw new Error(`Job not found: ${id}`);
+    }
+    await this.executeHandlers(job);
+  }
+
+  start(): void {
+    for (const task of this.tasks.values()) {
+      task.start();
+    }
+  }
+
+  stop(): void {
+    for (const task of this.tasks.values()) {
+      task.stop();
+    }
+  }
+
+  private async executeHandlers(job: Job): Promise<void> {
+    for (const handler of this.handlers) {
+      await handler(job);
+    }
+  }
+}

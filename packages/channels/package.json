@@ -1,18 +1,25 @@
 {
-  "name": "@augure/types",
+  "name": "@augure/channels",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "import": "./dist/index.js"
     }
   },
   "scripts": {
     "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:unit": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@augure/types": "workspace:*",
+    "grammy": "^1.40.0"
   }
 }

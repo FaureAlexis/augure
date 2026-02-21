@@ -1,0 +1,12 @@
+services:
+  augure:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config:ro
+      - ./memory:/app/memory
+      - ./logs:/app/logs
+      - ./skills:/app/skills
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file: .env
+    # No ports exposed — Telegram uses outbound polling only
