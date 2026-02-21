@@ -42,13 +42,22 @@ export const webSearchTool: NativeTool = {
 
       switch (cfg.provider) {
         case "tavily":
-          results = await searchTavily(query, maxResults, cfg.apiKey!);
+          if (!cfg.apiKey) {
+            return { success: false, output: "Tavily requires tools.webSearch.apiKey in config." };
+          }
+          results = await searchTavily(query, maxResults, cfg.apiKey);
           break;
         case "exa":
-          results = await searchExa(query, maxResults, cfg.apiKey!);
+          if (!cfg.apiKey) {
+            return { success: false, output: "Exa requires tools.webSearch.apiKey in config." };
+          }
+          results = await searchExa(query, maxResults, cfg.apiKey);
           break;
         case "searxng":
-          results = await searchSearXNG(query, maxResults, cfg.baseUrl!);
+          if (!cfg.baseUrl) {
+            return { success: false, output: "SearXNG requires tools.webSearch.baseUrl in config." };
+          }
+          results = await searchSearXNG(query, maxResults, cfg.baseUrl);
           break;
         default:
           return {

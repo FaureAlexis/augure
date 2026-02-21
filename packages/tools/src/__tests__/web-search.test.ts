@@ -50,6 +50,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("webSearchTool", () => {
@@ -153,6 +154,28 @@ describe("webSearchTool", () => {
     expect(result.success).toBe(false);
     expect(result.output).toContain("401");
     expect(result.output).toContain("Unauthorized");
+  });
+
+  it("should return error when Tavily apiKey is missing", async () => {
+    const ctx: ToolContext = {
+      config: { tools: { webSearch: { provider: "tavily" as const, maxResults: 3 } } } as ToolContext["config"],
+      memory: {} as MemoryStore,
+      scheduler: {} as Scheduler,
+    };
+    const result = await webSearchTool.execute({ query: "test" }, ctx);
+    expect(result.success).toBe(false);
+    expect(result.output).toContain("Tavily requires tools.webSearch.apiKey");
+  });
+
+  it("should return error when SearXNG baseUrl is missing", async () => {
+    const ctx: ToolContext = {
+      config: { tools: { webSearch: { provider: "searxng" as const, maxResults: 3 } } } as ToolContext["config"],
+      memory: {} as MemoryStore,
+      scheduler: {} as Scheduler,
+    };
+    const result = await webSearchTool.execute({ query: "test" }, ctx);
+    expect(result.success).toBe(false);
+    expect(result.output).toContain("SearXNG requires tools.webSearch.baseUrl");
   });
 
   it("should use maxResults override from params", async () => {

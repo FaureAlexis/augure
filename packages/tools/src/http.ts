@@ -1,6 +1,7 @@
 import type { NativeTool } from "@augure/types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576; // 1 MB
 const MAX_OUTPUT_CHARS = 4000;
 
 export const httpTool: NativeTool = {
@@ -61,6 +62,7 @@ export const httpTool: NativeTool = {
     }
 
     const timeoutMs = httpConfig?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const maxBytes = httpConfig?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -72,7 +74,11 @@ export const httpTool: NativeTool = {
         signal: controller.signal,
       });
 
-      let text = await res.text();
+      const raw = await res.arrayBuffer();
+      let text = new TextDecoder().decode(raw.slice(0, maxBytes));
+      if (raw.byteLength > maxBytes) {
+        text += "\n[response truncated at byte limit]";
+      }
       if (text.length > MAX_OUTPUT_CHARS) {
         text = text.slice(0, MAX_OUTPUT_CHARS) + "\n[truncated]";
       }

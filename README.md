@@ -53,9 +53,11 @@ packages/
   channels/   → Telegram (more channels planned)
   memory/     → persistent memory store, ingestion, retrieval
   scheduler/  → cron jobs, heartbeat
-  tools/      → tool registry (memory, schedule, http, web search)
+  tools/      → tool registry (memory, schedule, web search, http)
   sandbox/    → sandboxed code execution (stub)
   skills/     → skill system (stub)
+apps/
+  docs/       → documentation site (Fumadocs + Next.js)
 ```
 
 ## Docker

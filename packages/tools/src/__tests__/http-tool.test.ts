@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { httpTool } from "../http.js";
 import type { ToolContext, MemoryStore, Scheduler } from "@augure/types";
 
@@ -32,13 +32,17 @@ function mockResponse(overrides: Partial<{
     headers: {
       get: (name: string) => (name === "content-type" ? contentType : null),
     },
-    text: async () => body,
+    arrayBuffer: async () => new TextEncoder().encode(body).buffer,
   };
 }
 
 describe("httpTool", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("should perform a simple GET", async () => {
@@ -144,5 +148,33 @@ describe("httpTool", () => {
 
     expect(result.success).toBe(false);
     expect(result.output).toBe("Network error");
+  });
+
+  it("should abort on timeout", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal!.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        }),
+      ),
+    );
+    const ctx = makeCtx({ timeoutMs: 1 });
+    const result = await httpTool.execute({ method: "GET", url: "https://slow.example.com" }, ctx);
+
+    expect(result.success).toBe(false);
+    expect(result.output).toContain("aborted");
+  });
+
+  it("should truncate at maxResponseBytes", async () => {
+    const largeBody = "a".repeat(2000);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse({ body: largeBody })));
+    const ctx = makeCtx({ maxResponseBytes: 100 });
+    const result = await httpTool.execute({ method: "GET", url: "https://example.com" }, ctx);
+
+    expect(result.success).toBe(true);
+    expect(result.output).toContain("[response truncated at byte limit]");
   });
 });
