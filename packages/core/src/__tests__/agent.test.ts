@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { Agent } from "../agent.js";
-import type { LLMClient, LLMResponse, Message } from "@augure/types";
+import type { LLMClient, LLMResponse, Message, MemoryStore } from "@augure/types";
 import { ToolRegistry } from "@augure/tools";
+import { MemoryIngester, MemoryRetriever } from "@augure/memory";
 
 function createMockLLM(response: Partial<LLMResponse> = {}): LLMClient {
   return {
@@ -138,5 +139,78 @@ describe("Agent", () => {
       .calls[1][0] as Message[];
     const userMessages = callArgs.filter((m) => m.role === "user");
     expect(userMessages).toHaveLength(2);
+  });
+
+  it("should use MemoryRetriever for dynamic context when provided", async () => {
+    const llm = createMockLLM({ content: "OK" });
+    const tools = new ToolRegistry();
+
+    const mockStore = {
+      read: vi.fn().mockResolvedValue("dynamic memory content"),
+      write: vi.fn(),
+      append: vi.fn(),
+      list: vi.fn().mockResolvedValue(["observations.md"]),
+      exists: vi.fn().mockResolvedValue(true),
+    } as unknown as MemoryStore;
+
+    const retriever = new MemoryRetriever(mockStore);
+    const agent = new Agent({
+      llm,
+      tools,
+      systemPrompt: "You are Augure.",
+      memoryContent: "",
+      retriever,
+    });
+
+    await agent.handleMessage({
+      id: "1",
+      channelType: "telegram",
+      userId: "123",
+      text: "Hello",
+      timestamp: new Date(),
+    });
+
+    const callArgs = (llm.chat as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as Message[];
+    const systemMsg = callArgs.find((m) => m.role === "system");
+    expect(systemMsg?.content).toContain("dynamic memory content");
+  });
+
+  it("should trigger ingestion after message when ingester is provided", async () => {
+    const llm = createMockLLM({ content: "Response" });
+    const tools = new ToolRegistry();
+
+    const mockStore = {
+      read: vi.fn().mockRejectedValue(new Error("not found")),
+      write: vi.fn(),
+      append: vi.fn(),
+      list: vi.fn().mockResolvedValue([]),
+      exists: vi.fn().mockResolvedValue(false),
+    } as unknown as MemoryStore;
+
+    const ingestLLM = createMockLLM({ content: "- User said hello" });
+    const ingester = new MemoryIngester(ingestLLM, mockStore);
+    const ingestSpy = vi.spyOn(ingester, "ingest");
+
+    const agent = new Agent({
+      llm,
+      tools,
+      systemPrompt: "You are Augure.",
+      memoryContent: "",
+      ingester,
+    });
+
+    await agent.handleMessage({
+      id: "1",
+      channelType: "telegram",
+      userId: "123",
+      text: "Hello",
+      timestamp: new Date(),
+    });
+
+    // Wait a tick for the background ingestion promise
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(ingestSpy).toHaveBeenCalledOnce();
   });
 });

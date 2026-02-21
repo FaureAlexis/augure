@@ -1,5 +1,6 @@
 import type { LLMClient, Message, IncomingMessage } from "@augure/types";
 import type { ToolRegistry } from "@augure/tools";
+import type { MemoryIngester, MemoryRetriever } from "@augure/memory";
 import { assembleContext } from "./context.js";
 
 export interface AgentConfig {
@@ -9,6 +10,8 @@ export interface AgentConfig {
   memoryContent: string;
   persona?: string;
   maxToolLoops?: number;
+  retriever?: MemoryRetriever;
+  ingester?: MemoryIngester;
 }
 
 export class Agent {
@@ -25,13 +28,19 @@ export class Agent {
       content: incoming.text,
     });
 
+    // Use dynamic retrieval if available, otherwise fall back to static string
+    let memoryContent = this.config.memoryContent;
+    if (this.config.retriever) {
+      memoryContent = await this.config.retriever.retrieve();
+    }
+
     const maxLoops = this.config.maxToolLoops ?? 10;
     let loopCount = 0;
 
     while (loopCount < maxLoops) {
       const messages = assembleContext({
         systemPrompt: this.config.systemPrompt,
-        memoryContent: this.config.memoryContent,
+        memoryContent,
         toolSchemas: this.config.tools.toFunctionSchemas(),
         conversationHistory: this.conversationHistory,
         persona: this.config.persona,
@@ -44,6 +53,14 @@ export class Agent {
           role: "assistant",
           content: response.content,
         });
+
+        // Trigger ingestion in background (don't block response)
+        if (this.config.ingester) {
+          this.config.ingester
+            .ingest(this.conversationHistory)
+            .catch((err) => console.error("[augure] Ingestion error:", err));
+        }
+
         return response.content;
       }
 
