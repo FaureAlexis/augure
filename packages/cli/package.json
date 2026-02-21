@@ -31,5 +31,8 @@
     "citty": "^0.2.1"
   },
   "keywords": ["ai", "agent", "assistant", "telegram", "llm"],
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }

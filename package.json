@@ -15,9 +15,13 @@
     "test:integration": "turbo run test:integration",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.8",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.3.0",
     "eslint": "^10.0.1",
