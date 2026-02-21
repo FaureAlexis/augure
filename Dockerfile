@@ -13,6 +13,7 @@ COPY packages/scheduler/package.json packages/scheduler/
 COPY packages/tools/package.json packages/tools/
 COPY packages/sandbox/package.json packages/sandbox/
 COPY packages/skills/package.json packages/skills/
+COPY packages/cli/package.json packages/cli/
 RUN pnpm install --frozen-lockfile
 
 # Copy source & build
@@ -21,4 +22,4 @@ COPY packages/ packages/
 RUN pnpm build
 
 # Run
-CMD ["node", "packages/core/dist/main.js", "/app/config/augure.json5"]
+CMD ["node", "packages/cli/dist/bin.js", "start", "--config", "/app/config/augure.json5"]
