@@ -17,5 +17,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@augure/types": "workspace:*",
+    "dockerode": "^4.0.9"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^4.0.1"
   }
 }
