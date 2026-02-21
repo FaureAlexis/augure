@@ -1,0 +1,110 @@
+---
+title: Schedule Tool
+description: Create, delete, and list cron jobs at runtime
+---
+
+The `schedule` tool lets the LLM manage cron jobs dynamically. Jobs created at runtime are persisted to disk and survive restarts.
+
+## Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `"create" \| "delete" \| "list"` | Yes | The scheduling action to perform |
+| `id` | `string` | For create/delete | Unique job identifier. Auto-generated if omitted on create. |
+| `cron` | `string` | For create | Cron expression (validated by `node-cron`) |
+| `prompt` | `string` | For create | The prompt sent to the agent when the job triggers |
+
+## Actions
+
+### list
+
+Returns all registered jobs with their cron expression, prompt, and status.
+
+```json
+{
+  "name": "schedule",
+  "arguments": { "action": "list" }
+}
+```
+
+Output:
+
+```
+- morning-check: "Check for anything urgent today." @ 0 8 * * * (enabled)
+- stock-report: "Check portfolio and summarize." @ 0 18 * * 1-5 (enabled)
+```
+
+If there are no jobs, returns `"No scheduled jobs."`.
+
+### create
+
+Creates a new cron job. The job starts immediately and persists to disk.
+
+```json
+{
+  "name": "schedule",
+  "arguments": {
+    "action": "create",
+    "id": "weather-daily",
+    "cron": "0 7 * * *",
+    "prompt": "Check the weather forecast for today and send a summary."
+  }
+}
+```
+
+Output:
+
+```
+Created job weather-daily
+```
+
+If `id` is omitted, a timestamp-based ID is generated (`job-<timestamp>`).
+
+The cron expression is validated before registration. Invalid expressions return an error.
+
+### delete
+
+Removes a job by ID. Stops the cron task and removes it from persistence.
+
+```json
+{
+  "name": "schedule",
+  "arguments": {
+    "action": "delete",
+    "id": "weather-daily"
+  }
+}
+```
+
+Output:
+
+```
+Deleted job weather-daily
+```
+
+## Cron Expression Format
+
+The cron expressions follow standard 5-field format supported by `node-cron`:
+
+```
+ ┌────────── minute (0-59)
+ │ ┌──────── hour (0-23)
+ │ │ ┌────── day of month (1-31)
+ │ │ │ ┌──── month (1-12)
+ │ │ │ │ ┌── day of week (0-7, 0 and 7 = Sunday)
+ │ │ │ │ │
+ * * * * *
+```
+
+Examples:
+
+| Expression | Schedule |
+|-----------|----------|
+| `0 8 * * *` | Every day at 8:00 AM |
+| `0 18 * * 1-5` | Weekdays at 6:00 PM |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 9,14,19 * * *` | At 9 AM, 2 PM, and 7 PM |
+
+## How Jobs Execute
+
+When a cron job triggers, the scheduler fires all registered event handlers. The agent processes the job's `prompt` as if it were a user message, using the full agent loop (memory retrieval, tool calling, LLM reasoning). The response is sent to the configured channel.

@@ -1,0 +1,124 @@
+---
+title: Tool System
+description: How Augure's native tools work -- registration, execution, and function calling
+---
+
+Augure uses native tools that run in-process for speed. The LLM calls tools via function calling -- it receives tool schemas, returns structured tool calls, and the agent executes them.
+
+## NativeTool Interface
+
+Every tool implements the `NativeTool` interface:
+
+```typescript
+export interface NativeTool {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;  // JSON Schema
+  execute: (params: unknown, ctx: ToolContext) => Promise<ToolResult>;
+}
+
+export interface ToolResult {
+  success: boolean;
+  output: string;
+  artifacts?: Artifact[];
+}
+
+export interface Artifact {
+  type: "file" | "image" | "json";
+  name: string;
+  content: string;
+}
+```
+
+The `parameters` field is a JSON Schema object that describes the tool's input. The LLM uses this to generate valid arguments.
+
+## ToolContext
+
+Every tool receives a `ToolContext` giving it access to the agent's subsystems:
+
+```typescript
+export interface ToolContext {
+  config: AppConfig;
+  memory: MemoryStore;
+  scheduler: Scheduler;
+}
+```
+
+This allows tools to read/write memory, manage scheduled jobs, and access configuration -- all without needing their own initialization.
+
+## ToolRegistry
+
+The `ToolRegistry` manages tool registration and dispatch:
+
+```typescript
+export class ToolRegistry {
+  register(tool: NativeTool): void;      // Add a tool
+  get(name: string): NativeTool;          // Look up by name
+  list(): NativeTool[];                    // All registered tools
+  toFunctionSchemas(): FunctionSchema[];   // Schemas for the LLM
+  execute(name: string, params: unknown): Promise<ToolResult>;  // Dispatch
+  setContext(ctx: ToolContext): void;       // Inject shared context
+}
+```
+
+### Function Schema Format
+
+The `toFunctionSchemas()` method converts registered tools into the OpenAI-compatible function calling format:
+
+```typescript
+export interface FunctionSchema {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+```
+
+These schemas are injected into the system prompt so the LLM knows what tools are available and how to call them.
+
+## Available Tools
+
+Augure currently provides 5 native tools:
+
+| Tool | Description | Details |
+|------|-------------|---------|
+| [`memory_read`](/docs/tools/memory) | Read a memory file or list all files | [Memory Tools](/docs/tools/memory) |
+| [`memory_write`](/docs/tools/memory) | Write content to a memory file | [Memory Tools](/docs/tools/memory) |
+| [`schedule`](/docs/tools/schedule) | Create, delete, or list cron jobs | [Schedule Tool](/docs/tools/schedule) |
+| [`web_search`](/docs/tools/web-search) | Search the web via Tavily, Exa, or SearXNG | [Web Search Tool](/docs/tools/web-search) |
+| [`http`](/docs/tools/http) | Make HTTP requests with optional auth presets | [HTTP Tool](/docs/tools/http) |
+
+## How Tool Calling Works
+
+1. The agent assembles context including tool schemas in the system prompt
+2. The LLM returns a response that may include tool calls
+3. The agent executes each tool call via the registry
+4. Tool results are appended to conversation history as `tool` role messages
+5. The agent loops back to the LLM with the updated history
+6. The loop continues until the LLM responds with plain text (no tool calls) or the max loop count is reached
+
+```typescript
+while (loopCount < maxLoops) {
+  const messages = assembleContext({ ... });
+  const response = await llm.chat(messages);
+
+  if (response.toolCalls.length === 0) {
+    // Done -- return the text response
+    return response.content;
+  }
+
+  // Execute each tool call
+  for (const toolCall of response.toolCalls) {
+    const result = await tools.execute(toolCall.name, toolCall.arguments);
+    conversationHistory.push({
+      role: "tool",
+      content: result.output,
+      toolCallId: toolCall.id,
+    });
+  }
+
+  loopCount++;
+}
+```

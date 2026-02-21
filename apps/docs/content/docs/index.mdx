@@ -7,6 +7,55 @@ description: Deploy your own AI agent that runs 24/7
 
 Augure is an open-source personal AI agent designed to run continuously on a server. It connects to your messaging apps, learns your preferences over time, executes tasks proactively on a schedule, and can spin up isolated sandboxes for complex work.
 
+The name comes from French/Latin for "oracle, the one who foresees." Augure anticipates your needs, acts proactively, and learns to foresee what you want.
+
+## Core Principles
+
+- **Filesystem-first** -- Memory, config, logs: everything is files. Human-readable, git-trackable, greppable. No vector DB, no embeddings, no opaque stores.
+- **Readable** -- Target under 10K lines of code. A single developer can audit the entire codebase in an afternoon.
+- **Secure by default** -- All execution in Docker containers. Credentials never touch disk. No inbound ports required.
+- **Proactive** -- Not just reactive chat. Schedules, monitors, and acts on your behalf 24/7 via cron jobs and heartbeat checks.
+- **Cost-aware** -- Per-usage model routing. Cheap models for monitoring and ingestion, full models for reasoning.
+- **Self-improving** -- The agent extracts observations from conversations and builds persistent memory over time.
+
 ## Quick Start
 
-See [Configuration](/docs/configuration) to understand the config file.
+### Prerequisites
+
+- A VPS with Docker and Docker Compose (2 vCPU / 4 GB RAM minimum)
+- An [OpenRouter](https://openrouter.ai/) API key
+- A [Telegram Bot Token](https://core.telegram.org/bots#how-do-i-create-a-bot)
+
+### 1. Clone and configure
+
+```bash
+git clone https://github.com/FaureAlexis/augure.git
+cd augure
+
+cp .env.example .env
+# Edit .env with your tokens:
+#   OPENROUTER_API_KEY=sk-or-...
+#   TELEGRAM_BOT_TOKEN=123456:ABC...
+
+cp config/augure.example.json5 config/augure.json5
+# Edit config with your preferences (no secrets here!)
+```
+
+### 2. Launch
+
+```bash
+docker compose up -d
+```
+
+### 3. Talk to your bot on Telegram
+
+No ports to open, no firewall to configure. The agent uses outbound polling only.
+
+## What's Next
+
+- [Configuration Reference](/docs/configuration) -- understand every option in `augure.json5`
+- [Architecture](/docs/architecture) -- how the agent works internally
+- [Memory System](/docs/memory) -- how Augure learns and remembers
+- [Scheduler](/docs/scheduler) -- cron jobs and proactive heartbeat
+- [Tools](/docs/tools) -- native tools available to the agent
+- [Deployment](/docs/deployment) -- production setup and security

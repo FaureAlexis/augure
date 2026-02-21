@@ -1,0 +1,121 @@
+---
+title: HTTP Tool
+description: Make HTTP requests with preset-based auth injection
+---
+
+The `http` tool makes GET and POST requests. Its key feature is the **preset system** -- named configurations that inject authentication headers from config, so the LLM never sees credentials.
+
+## Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `method` | `"GET" \| "POST"` | Yes | HTTP method (only GET and POST are allowed) |
+| `url` | `string` | Yes | Full URL, or a path if using a preset |
+| `preset` | `string` | No | Config preset name for auth injection |
+| `body` | `object` | No | JSON body (POST only) |
+| `headers` | `object` | No | Additional headers (do not use for auth -- use a preset) |
+
+## Preset System
+
+Presets are configured in `augure.json5` under `tools.http.presets`. Each preset has a `baseUrl` and `headers` (typically containing auth tokens):
+
+```json5
+{
+  tools: {
+    http: {
+      timeoutMs: 10000,
+      presets: {
+        github: {
+          baseUrl: "https://api.github.com",
+          headers: {
+            Authorization: "Bearer ${GITHUB_TOKEN}",
+            Accept: "application/vnd.github.v3+json",
+          },
+        },
+        notion: {
+          baseUrl: "https://api.notion.com/v1",
+          headers: {
+            Authorization: "Bearer ${NOTION_API_KEY}",
+            "Notion-Version": "2022-06-28",
+          },
+        },
+      },
+    },
+  },
+}
+```
+
+### Security Model
+
+The LLM requests a preset by name. The agent resolves the preset's `baseUrl` and `headers` from config at execution time. The LLM never sees the actual API keys or tokens -- it only knows preset names.
+
+When using a preset:
+- If the `url` does not start with `http`, the preset's `baseUrl` is prepended
+- The preset's `headers` are merged into the request (overriding defaults and extra headers)
+
+### Header Merge Order
+
+Headers are merged in this order (later overrides earlier):
+
+1. `tools.http.defaultHeaders` (global defaults)
+2. `headers` parameter (from the LLM's tool call)
+3. Preset `headers` (from config -- highest priority, contains auth)
+
+This ensures preset auth headers always take precedence.
+
+## Examples
+
+### GET with a preset
+
+```json
+{
+  "name": "http",
+  "arguments": {
+    "method": "GET",
+    "url": "/repos/FaureAlexis/augure",
+    "preset": "github"
+  }
+}
+```
+
+This resolves to `GET https://api.github.com/repos/FaureAlexis/augure` with the GitHub auth headers injected.
+
+### POST without a preset
+
+```json
+{
+  "name": "http",
+  "arguments": {
+    "method": "POST",
+    "url": "https://api.example.com/webhook",
+    "body": { "event": "deploy", "status": "success" }
+  }
+}
+```
+
+## Response Format
+
+The tool returns the HTTP status, content type, and response body:
+
+```
+Status: 200 OK
+Content-Type: application/json; charset=utf-8
+
+{"id": 123, "name": "augure", "full_name": "FaureAlexis/augure", ...}
+```
+
+Responses longer than 4,000 characters are truncated with a `[truncated]` marker.
+
+## Timeouts
+
+The request timeout is controlled by `tools.http.timeoutMs` (default: 10,000 ms). Requests that exceed this timeout are aborted.
+
+## Error Handling
+
+If the preset name is not found in config, the tool returns:
+
+```
+Unknown preset: "github". Check your config.
+```
+
+Network errors, timeouts, and non-2xx responses are returned with `success: false` and the error message or response body.

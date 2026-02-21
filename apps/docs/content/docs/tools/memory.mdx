@@ -1,0 +1,107 @@
+---
+title: Memory Tools
+description: Read and write memory files -- memory_read and memory_write
+---
+
+The memory tools give the LLM direct read/write access to the filesystem-based memory store.
+
+## memory_read
+
+Read content from a memory file, or list all memory files when no path is provided.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | `string` | No | File path relative to the memory directory. Omit to list all files. |
+
+### Behavior
+
+- **With `path`**: reads the file and returns its content
+- **Without `path`**: recursively lists all files in the memory directory, returning one path per line
+
+### Examples
+
+List all memory files:
+
+```json
+{
+  "name": "memory_read",
+  "arguments": {}
+}
+```
+
+Returns:
+
+```
+identity.md
+observations.md
+preferences/interests.md
+knowledge/personal/housing.md
+```
+
+Read a specific file:
+
+```json
+{
+  "name": "memory_read",
+  "arguments": { "path": "observations.md" }
+}
+```
+
+Returns the file content as a string.
+
+### Implementation
+
+```typescript
+execute: async (params, ctx) => {
+  const { path } = params as { path?: string };
+  if (!path) {
+    const files = await ctx.memory.list();
+    return { success: true, output: files.join("\n") };
+  }
+  const content = await ctx.memory.read(path);
+  return { success: true, output: content };
+};
+```
+
+## memory_write
+
+Write content to a memory file. Creates parent directories automatically.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | `string` | Yes | File path relative to the memory directory |
+| `content` | `string` | Yes | Content to write |
+
+### Example
+
+```json
+{
+  "name": "memory_write",
+  "arguments": {
+    "path": "preferences/tools.md",
+    "content": "# Tool Preferences\n\n- Editor: VS Code\n- Language: TypeScript\n- Package manager: pnpm"
+  }
+}
+```
+
+Returns:
+
+```
+Written to preferences/tools.md
+```
+
+### Implementation
+
+```typescript
+execute: async (params, ctx) => {
+  const { path, content } = params as { path: string; content: string };
+  await ctx.memory.write(path, content);
+  return { success: true, output: `Written to ${path}` };
+};
+```
+
+Note: `memory_write` overwrites the entire file. The LLM should read the file first (via `memory_read`) if it needs to preserve existing content.

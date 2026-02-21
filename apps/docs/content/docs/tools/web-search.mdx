@@ -1,0 +1,105 @@
+---
+title: Web Search Tool
+description: Search the web using Tavily, Exa, or a self-hosted SearXNG instance
+---
+
+The `web_search` tool queries web search providers and returns formatted results to the LLM.
+
+## Configuration
+
+Configure the search provider in `augure.json5`:
+
+### Tavily (hosted, paid)
+
+```json5
+{
+  tools: {
+    webSearch: {
+      provider: "tavily",
+      apiKey: "${TAVILY_API_KEY}",
+      maxResults: 5,
+    },
+  },
+}
+```
+
+### Exa (hosted, paid)
+
+```json5
+{
+  tools: {
+    webSearch: {
+      provider: "exa",
+      apiKey: "${EXA_API_KEY}",
+      maxResults: 5,
+    },
+  },
+}
+```
+
+### SearXNG (self-hosted, free)
+
+```json5
+{
+  tools: {
+    webSearch: {
+      provider: "searxng",
+      baseUrl: "http://searxng:8080",  // Docker service or external URL
+      maxResults: 5,
+    },
+  },
+}
+```
+
+SearXNG can run alongside Augure in Docker Compose. No API key required.
+
+## Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | `string` | Yes | The search query |
+| `maxResults` | `number` | No | Maximum results to return (default: from config, or 5) |
+
+## Example
+
+```json
+{
+  "name": "web_search",
+  "arguments": {
+    "query": "TypeScript monorepo best practices 2026",
+    "maxResults": 3
+  }
+}
+```
+
+## Output Format
+
+Results are formatted as a numbered list:
+
+```
+1. **Article Title**
+   Brief snippet or description of the result.
+   https://example.com/article
+
+2. **Another Result**
+   Description text from the search provider.
+   https://example.com/other
+```
+
+If no results are found, returns `"No results found."`.
+
+If `tools.webSearch` is not configured, the tool returns an error: `"web_search is not configured. Set tools.webSearch in your config."`.
+
+## Provider Details
+
+### Tavily
+
+Uses the Tavily Search API (`POST https://api.tavily.com/search`). Returns title, URL, and content snippet for each result.
+
+### Exa
+
+Uses the Exa Search API (`POST https://api.exa.ai/search`). Requests text content with a 300 character limit per result.
+
+### SearXNG
+
+Queries a SearXNG instance via its JSON API (`GET /search?q=...&format=json`). Results are sliced to `maxResults` client-side.

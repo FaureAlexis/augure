@@ -1,0 +1,143 @@
+---
+title: Architecture
+description: How Augure is structured internally -- primitives, packages, and execution flow
+---
+
+## The 6 Primitives
+
+Augure is built on 6 core primitives -- the irreducible building blocks of the agent:
+
+| Primitive | Package | What it does |
+|-----------|---------|-------------|
+| **THINK** | `@augure/core` | LLM orchestration. Context assembly (memory + conversation + tool results). Decides which tools to invoke. |
+| **EXECUTE** | `@augure/tools` | Native tools run in-process for speed. Handles frequent lightweight operations (search, memory, HTTP, scheduling). |
+| **REMEMBER** | `@augure/memory` | Markdown files on disk. Ingests facts from conversations. Retrieves relevant context with token budgeting. |
+| **COMMUNICATE** | `@augure/channels` | Telegram (implemented). Bidirectional -- receives messages and pushes proactive reports. |
+| **WATCH** | `@augure/scheduler` | Cron jobs, heartbeat monitoring. Triggers actions on schedule or on conditions. |
+| **LEARN** | `@augure/memory` | Observational learning from conversations. The ingester extracts facts automatically. |
+
+## Package Structure
+
+The codebase is a pnpm monorepo with Turborepo for task orchestration:
+
+| Package | Path | Purpose |
+|---------|------|---------|
+| `@augure/types` | `packages/types` | Shared TypeScript interfaces: config, tools, memory, scheduler, LLM, channels |
+| `@augure/core` | `packages/core` | Agent loop, LLM client, context assembly, config loader |
+| `@augure/memory` | `packages/memory` | FileMemoryStore, MemoryIngester, MemoryRetriever |
+| `@augure/scheduler` | `packages/scheduler` | CronScheduler, JobStore, Heartbeat, parseInterval |
+| `@augure/tools` | `packages/tools` | ToolRegistry + native tools (memory, schedule, web_search, http) |
+| `@augure/channels` | `packages/channels` | Channel interface + Telegram implementation |
+| `@augure/sandbox` | `packages/sandbox` | Container pool management (planned) |
+| `@augure/skills` | `packages/skills` | Self-generated skill system (planned) |
+
+## Execution Flow
+
+When a message arrives, the agent follows this loop:
+
+```
+Message arrives (Telegram, cron job, heartbeat)
+       |
+       v
+  Agent.handleMessage()
+       |
+       v
+  MemoryRetriever.retrieve()  -- load memory files within token budget
+       |
+       v
+  assembleContext()  -- build the full prompt
+       |
+       v
+  LLM.chat(messages)  -- call the model
+       |
+       v
+  Response has tool calls?
+       |
+    yes |          no
+       v            v
+  Execute tools     Return text response
+  Push results      Trigger ingestion (background)
+  Loop back to LLM
+```
+
+The agent loops up to `maxToolLoops` times (default: 10) to allow multi-step tool usage. When the LLM returns a plain text response (no tool calls), the loop ends and the response is sent to the user.
+
+### Tool Execution
+
+All tools run in-process via the `ToolRegistry`. The LLM receives tool schemas as function definitions and returns structured tool calls. The registry dispatches to the correct tool:
+
+```typescript
+for (const toolCall of response.toolCalls) {
+  const result = await this.config.tools.execute(
+    toolCall.name,
+    toolCall.arguments,
+  );
+  this.conversationHistory.push({
+    role: "tool",
+    content: result.output,
+    toolCallId: toolCall.id,
+  });
+}
+```
+
+### Background Ingestion
+
+After the agent produces a final text response, memory ingestion runs in the background without blocking the reply:
+
+```typescript
+if (this.config.ingester) {
+  this.config.ingester
+    .ingest(this.conversationHistory)
+    .catch((err) => console.error("[augure] Ingestion error:", err));
+}
+```
+
+## Context Window Assembly
+
+The `assembleContext` function builds the message array sent to the LLM. It follows a stable-to-dynamic ordering:
+
+### Zone 1: Static Prefix (cached across turns)
+
+1. **System prompt** -- base instructions and persona
+2. **Active persona overlay** -- task-specific behavioral instructions (if any)
+3. **Memory content** -- retrieved from memory files, within the configured token budget
+
+### Zone 2: Semi-stable
+
+4. **Tool schemas** -- listed as available tools in the system prompt
+
+### Zone 3: Dynamic (changes every turn)
+
+5. **Conversation history** -- all user, assistant, and tool messages
+
+The assembly code:
+
+```typescript
+export function assembleContext(input: ContextInput): Message[] {
+  const { systemPrompt, memoryContent, toolSchemas, conversationHistory, persona } = input;
+
+  let system = systemPrompt;
+
+  if (persona) {
+    system += `\n\n## Active Persona\n${persona}`;
+  }
+
+  if (memoryContent) {
+    system += `\n\n## Memory\n${memoryContent}`;
+  }
+
+  if (toolSchemas.length > 0) {
+    const toolList = toolSchemas
+      .map((s) => `- **${s.function.name}**: ${s.function.description}`)
+      .join("\n");
+    system += `\n\n## Available Tools\n${toolList}`;
+  }
+
+  const messages: Message[] = [{ role: "system", content: system }];
+  messages.push(...conversationHistory);
+
+  return messages;
+}
+```
+
+The system prompt (Zone 1) stays stable between turns, enabling prompt caching with providers that support it. Memory content only changes when the ingester runs, so cache hits are frequent.

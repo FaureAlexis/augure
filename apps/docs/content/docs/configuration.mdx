@@ -1,0 +1,251 @@
+---
+title: Configuration Reference
+description: Complete reference for the augure.json5 configuration file
+---
+
+Augure uses a single JSON5 configuration file (`augure.json5`). JSON5 supports comments and trailing commas, making it suitable for human-edited config.
+
+## Environment Variable Interpolation
+
+Secrets are injected via environment variables using `${VAR_NAME}` syntax. The config loader replaces these placeholders at startup:
+
+```typescript
+function interpolateEnvVars(raw: string): string {
+  return raw.replace(/\$\{([^}]+)\}/g, (match, varName: string) => {
+    const value = process.env[varName];
+    if (value === undefined) {
+      throw new Error(`Missing environment variable: ${varName}`);
+    }
+    return value;
+  });
+}
+```
+
+If a referenced variable is missing, the agent refuses to start. Keep all secrets in `.env` and reference them in the config.
+
+## Full Example
+
+```json5
+{
+  identity: {
+    name: "Augure",
+    personality: "Helpful, proactive, concise. Speaks French by default.",
+  },
+
+  llm: {
+    default: {
+      provider: "openrouter",
+      apiKey: "${OPENROUTER_API_KEY}",
+      model: "anthropic/claude-sonnet-4-5",
+      maxTokens: 8192,
+    },
+    ingestion: {
+      model: "google/gemini-2.5-flash",
+      maxTokens: 2048,
+    },
+    monitoring: {
+      model: "google/gemini-2.5-flash",
+      maxTokens: 1024,
+    },
+  },
+
+  channels: {
+    telegram: {
+      enabled: true,
+      botToken: "${TELEGRAM_BOT_TOKEN}",
+      allowedUsers: [123456789],
+    },
+  },
+
+  memory: {
+    path: "./memory",
+    autoIngest: true,
+    maxRetrievalTokens: 2000,
+  },
+
+  scheduler: {
+    heartbeatInterval: "30m",
+    jobs: [
+      {
+        id: "morning-check",
+        cron: "0 8 * * *",
+        prompt: "Check for anything that needs my attention today.",
+        channel: "telegram",
+      },
+    ],
+  },
+
+  sandbox: {
+    runtime: "docker",
+    defaults: {
+      timeout: 300,
+      memoryLimit: "512m",
+      cpuLimit: "1.0",
+    },
+  },
+
+  tools: {
+    webSearch: {
+      provider: "tavily",
+      apiKey: "${TAVILY_API_KEY}",
+    },
+    http: {
+      timeoutMs: 10000,
+      presets: {
+        github: {
+          baseUrl: "https://api.github.com",
+          headers: {
+            Authorization: "Bearer ${GITHUB_TOKEN}",
+            Accept: "application/vnd.github.v3+json",
+          },
+        },
+      },
+    },
+  },
+
+  security: {
+    sandboxOnly: true,
+    allowedHosts: [],
+    maxConcurrentSandboxes: 3,
+  },
+}
+```
+
+## Sections
+
+### identity
+
+Defines the agent's name and personality, injected into the system prompt.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Agent display name |
+| `personality` | `string` | Yes | Personality description injected into the system prompt |
+
+### llm
+
+LLM provider configuration with per-usage model overrides. The `default` config is required; all other keys are optional overrides that inherit missing fields from `default`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `default` | `LLMModelConfig` | Yes | Default model configuration |
+| `reasoning` | `Partial<LLMModelConfig>` | No | Override for user-facing conversations |
+| `ingestion` | `Partial<LLMModelConfig>` | No | Override for memory extraction (use a cheap model) |
+| `monitoring` | `Partial<LLMModelConfig>` | No | Override for heartbeat checks (use a cheap model) |
+| `coding` | `Partial<LLMModelConfig>` | No | Override for code generation tasks |
+
+Each `LLMModelConfig` has:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | `"openrouter" \| "anthropic" \| "openai"` | API provider |
+| `apiKey` | `string` | API key (use `${ENV_VAR}` syntax) |
+| `model` | `string` | Model identifier |
+| `maxTokens` | `number` | Maximum output tokens |
+
+### channels
+
+Messaging channel configuration. Currently only Telegram is fully implemented.
+
+#### channels.telegram
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Enable the Telegram channel |
+| `botToken` | `string` | Bot token from @BotFather (use `${ENV_VAR}`) |
+| `allowedUsers` | `number[]` | Array of Telegram user IDs allowed to interact |
+
+#### channels.whatsapp
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Enable the WhatsApp channel (not yet implemented) |
+
+#### channels.web
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Enable the web dashboard (not yet implemented) |
+| `port` | `number` | HTTP port for the web interface |
+
+### memory
+
+Controls the filesystem-based memory system.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | `string` | Yes | Base directory for memory files |
+| `autoIngest` | `boolean` | Yes | Automatically extract observations from conversations |
+| `maxRetrievalTokens` | `number` | Yes | Maximum tokens injected into context from memory (approx. 4 chars per token) |
+
+### scheduler
+
+Cron-based job scheduling and proactive heartbeat.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `heartbeatInterval` | `string` | Yes | Interval between heartbeat checks (e.g. `"30m"`, `"1h"`, `"300s"`) |
+| `jobs` | `SchedulerJobConfig[]` | Yes | Array of scheduled jobs |
+
+Each job:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Unique job identifier |
+| `cron` | `string` | Cron expression (validated by `node-cron`) |
+| `prompt` | `string` | The prompt sent to the agent when the job triggers |
+| `channel` | `string` | Which channel to send results to |
+
+### tools
+
+Configuration for native tools.
+
+#### tools.webSearch
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `provider` | `"tavily" \| "exa" \| "searxng"` | Yes | Search provider |
+| `apiKey` | `string` | For Tavily/Exa | API key |
+| `baseUrl` | `string` | For SearXNG | Self-hosted instance URL |
+| `maxResults` | `number` | No | Default max results (fallback: 5) |
+
+#### tools.http
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `defaultHeaders` | `Record<string, string>` | No | Headers added to all HTTP requests |
+| `presets` | `Record<string, HttpPreset>` | No | Named preset configurations |
+| `timeoutMs` | `number` | No | Request timeout in milliseconds (default: 10000) |
+| `maxResponseBytes` | `number` | No | Maximum response body size |
+
+Each `HttpPreset`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `baseUrl` | `string` | Base URL prepended when the tool URL does not start with `http` |
+| `headers` | `Record<string, string>` | Headers injected for this preset (typically auth tokens) |
+
+### sandbox
+
+Container execution defaults.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `runtime` | `"docker"` | Yes | Container runtime (only Docker supported) |
+| `defaults.timeout` | `number` | Yes | Default execution timeout in seconds |
+| `defaults.memoryLimit` | `string` | Yes | Container memory limit (e.g. `"512m"`) |
+| `defaults.cpuLimit` | `string` | Yes | Container CPU limit (e.g. `"1.0"`) |
+
+### security
+
+Global security settings.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sandboxOnly` | `boolean` | Yes | Require all code execution in containers |
+| `allowedHosts` | `string[]` | Yes | Restrict outbound network to these hosts (empty = allow all) |
+| `maxConcurrentSandboxes` | `number` | Yes | Maximum number of concurrent containers |
+
+## Validation
+
+The config is parsed and validated with Zod at startup. If any field is invalid or missing, the agent prints a clear error and exits. The full Zod schema is defined in `packages/core/src/config.ts`.

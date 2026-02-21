@@ -1,0 +1,131 @@
+---
+title: Deployment
+description: Production setup with Docker Compose, environment variables, and security defaults
+---
+
+## Requirements
+
+- **VPS**: 2 vCPU / 4 GB RAM minimum (Hetzner CX22 at ~4 EUR/mo, DigitalOcean at $24/mo)
+- **Docker** and **Docker Compose** installed
+- **Node.js 22+** (for local development only; production runs entirely in Docker)
+
+## Docker Compose
+
+Augure deploys as a single Docker Compose service:
+
+```yaml
+services:
+  augure:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config:ro        # Config is read-only at runtime
+      - ./memory:/app/memory            # Memory store (read-write)
+      - ./logs:/app/logs                # Audit trail
+      - ./skills:/app/skills            # User skills
+      - /var/run/docker.sock:/var/run/docker.sock  # For container pool management
+    env_file: .env                      # Secrets live here ONLY
+    # No ports exposed! Telegram uses outbound polling.
+```
+
+Note the absence of a `ports:` section. The agent communicates exclusively via outbound connections (Telegram long-polling, OpenRouter API calls). No inbound ports are opened by default.
+
+## Environment Variables
+
+Create a `.env` file in the project root. This is the only place secrets are stored.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENROUTER_API_KEY` | Yes | OpenRouter API key for LLM access |
+| `TELEGRAM_BOT_TOKEN` | Yes | Telegram bot token from @BotFather |
+| `TAVILY_API_KEY` | If using Tavily | API key for Tavily web search |
+| `EXA_API_KEY` | If using Exa | API key for Exa web search |
+| `GITHUB_TOKEN` | If using GitHub preset | Personal access token for GitHub API |
+
+Example `.env`:
+
+```bash
+OPENROUTER_API_KEY=sk-or-v1-abc123...
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+TAVILY_API_KEY=tvly-abc123...
+```
+
+Environment variables are interpolated into the config at startup using `${VAR_NAME}` syntax. If a referenced variable is missing, the agent refuses to start.
+
+## Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/FaureAlexis/augure.git
+cd augure
+
+# 2. Configure
+cp .env.example .env
+# Edit .env with your API keys
+
+cp config/augure.example.json5 config/augure.json5
+# Edit config with your preferences (no secrets in this file)
+
+# 3. Launch
+docker compose up -d
+
+# 4. Talk to your bot on Telegram
+```
+
+## Security Defaults
+
+Augure is secure by default with zero configuration:
+
+| Default | Description |
+|---------|-------------|
+| **No inbound ports** | Telegram and WhatsApp use outbound polling. No firewall rules needed. |
+| **Secrets in env only** | Config supports `${ENV_VAR}` interpolation. Secrets never stored in config files. |
+| **Sandboxed execution** | The `security.sandboxOnly` flag (default: `true`) requires all code execution in Docker containers. |
+| **Scoped volumes** | Sandboxed containers only see their `/workspace`, not the host filesystem. |
+| **Container limits** | Default timeout of 300 seconds, 512 MB memory, 1 CPU core. |
+
+### Attack Surface
+
+For the current milestone (Telegram only):
+
+- **Zero inbound ports** -- the bot uses long-polling (outbound HTTPS only)
+- **Attack surface limited to**: SSH access, Docker socket, Telegram token
+- **No web dashboard, no webhook endpoints, no exposed APIs**
+
+## Self-Hosted Search (Optional)
+
+To avoid paying for Tavily/Exa, you can run SearXNG alongside Augure:
+
+```yaml
+services:
+  augure:
+    # ... (as above)
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+```
+
+Then configure the search tool:
+
+```json5
+{
+  tools: {
+    webSearch: {
+      provider: "searxng",
+      baseUrl: "http://searxng:8080",
+    },
+  },
+}
+```
+
+## Documentation Hosting
+
+The Augure docs site (in `apps/docs/`) is a Next.js + Fumadocs application. It can be deployed to Vercel or any platform that supports Next.js:
+
+```bash
+cd apps/docs
+pnpm build   # Build the static site
+```
+
+The docs are independent from the agent and can be hosted separately.

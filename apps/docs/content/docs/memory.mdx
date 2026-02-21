@@ -1,0 +1,158 @@
+---
+title: Memory System
+description: Filesystem-based observational memory -- how Augure learns and remembers
+---
+
+Augure uses a filesystem-first memory system. All memory is stored as plain markdown files on disk. No vector database, no embeddings, no chunking pipeline. The LLM reads files directly.
+
+## FileMemoryStore
+
+The `FileMemoryStore` class implements the `MemoryStore` interface with five operations:
+
+```typescript
+export interface MemoryStore {
+  read(path: string): Promise<string>;
+  write(path: string, content: string): Promise<void>;
+  append(path: string, content: string): Promise<void>;
+  list(directory?: string): Promise<string[]>;
+  exists(path: string): Promise<boolean>;
+}
+```
+
+All paths are relative to the configured `memory.path` directory. The store creates parent directories automatically on write.
+
+### Operations
+
+| Method | Behavior |
+|--------|----------|
+| `read(path)` | Read file contents as UTF-8 |
+| `write(path, content)` | Write content to file, creating directories as needed |
+| `append(path, content)` | Append to existing file, or create if it does not exist |
+| `list(directory?)` | Recursively list all files, returning paths relative to the base directory |
+| `exists(path)` | Check if a file exists |
+
+### Directory Structure
+
+```
+memory/
+  identity.md              # Who the user is, background, goals
+  observations.md          # Dated observation log (append-only)
+  preferences/
+    communication.md       # Language, tone preferences
+    interests.md           # Topics, hobbies, current focus areas
+  knowledge/
+    personal/              # Personal facts (housing, finance, etc.)
+    professional/          # Work-related context
+  relationships/
+    contacts.md            # Key people and context
+```
+
+## MemoryIngester
+
+The ingester extracts factual observations from conversations using a cheap LLM (e.g. Gemini Flash). It runs in the background after each conversation turn.
+
+### How It Works
+
+1. Filter the conversation to user and assistant messages
+2. Send the conversation text to the LLM with an extraction prompt
+3. Parse the response into individual bullet-point observations
+4. Append a dated block to `observations.md`
+
+The extraction prompt instructs the LLM to:
+- Return a markdown bullet list of observations
+- Only extract facts, preferences, decisions, plans, and personal details
+- Be concise: one fact per bullet
+- Use present tense ("User prefers X")
+- Skip greetings, small talk, and meta-conversation
+
+### Output Format
+
+Observations are appended as dated markdown blocks:
+
+```markdown
+## 2026-02-21
+- User prefers TypeScript over JavaScript
+- User is building a project called Augure
+- User lives in Bordeaux, France
+
+## 2026-02-22
+- User accepted new job at TechCorp, starting March 1
+- Now looking for apartments in Paris
+```
+
+### Temporal Awareness
+
+Each observation block is dated with the current date (`YYYY-MM-DD`). This enables the agent to handle contradictions -- newer observations supersede older ones. For example, "lives in Paris" (Feb 22) overrides "lives in Bordeaux" (Feb 21).
+
+The ingestion code:
+
+```typescript
+async ingest(conversation: Message[]): Promise<void> {
+  if (conversation.length === 0) return;
+
+  const conversationText = conversation
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => `${m.role}: ${m.content}`)
+    .join("\n");
+
+  const messages: Message[] = [
+    { role: "system", content: EXTRACTION_PROMPT },
+    { role: "user", content: conversationText },
+  ];
+
+  const response = await this.llm.chat(messages);
+  const observations = this.parseObservations(response.content);
+
+  if (observations.length === 0) return;
+
+  const date = new Date().toISOString().slice(0, 10);
+  const block = `## ${date}\n${observations.map((o) => `- ${o}`).join("\n")}\n\n`;
+
+  await this.store.append("observations.md", block);
+}
+```
+
+## MemoryRetriever
+
+The retriever assembles memory content for the agent's context window, respecting a configured token budget.
+
+### Priority File Ordering
+
+Files are loaded in a specific order:
+
+1. `identity.md` -- always loaded first (who the user is)
+2. `observations.md` -- dated observation log
+3. All remaining files in alphabetical order
+
+This ordering ensures the most important context is always included, even when the token budget is tight.
+
+### Token Budgeting
+
+The retriever uses an approximate token count of 4 characters per token. It reads files sequentially until the budget is exhausted:
+
+```typescript
+const CHARS_PER_TOKEN = 4;
+
+// maxTokens comes from config.memory.maxRetrievalTokens (default: 10,000)
+this.maxChars = maxTokens * CHARS_PER_TOKEN;
+```
+
+Each file is formatted with a markdown header (`### filename`) and its content. If a file would exceed the remaining budget, it is truncated with a `[...truncated]` marker.
+
+### Output Format
+
+The retriever returns a single string with all loaded files concatenated:
+
+```markdown
+### identity.md
+Name: Alex
+Location: Bordeaux
+...
+
+### observations.md
+## 2026-02-21
+- User prefers TypeScript over JavaScript
+...
+```
+
+This string is injected into the system prompt under a `## Memory` section by the context assembler.

@@ -1,0 +1,167 @@
+---
+title: Scheduler
+description: Cron jobs, heartbeat monitoring, and proactive task execution
+---
+
+The scheduler enables Augure to act proactively -- running tasks on cron schedules and periodically checking if anything needs attention.
+
+## CronScheduler
+
+The `CronScheduler` wraps `node-cron` and manages a registry of jobs. It implements the `Scheduler` interface:
+
+```typescript
+export interface Scheduler {
+  start(): void;
+  stop(): void;
+  addJob(job: Job): void;
+  removeJob(id: string): void;
+  listJobs(): Job[];
+  triggerJob(id: string): Promise<void>;
+}
+```
+
+### Job Interface
+
+```typescript
+export interface Job {
+  id: string;
+  cron: string;
+  prompt: string;
+  channel: string;
+  enabled: boolean;
+  lastRun?: string;
+  nextRun?: string;
+}
+```
+
+### Operations
+
+| Method | Behavior |
+|--------|----------|
+| `addJob(job)` | Validate cron expression, register the job, start the cron task if enabled |
+| `removeJob(id)` | Stop the cron task and remove the job |
+| `listJobs()` | Return all registered jobs |
+| `triggerJob(id)` | Immediately execute a job's handlers (bypass cron schedule) |
+| `start()` | Start all cron tasks |
+| `stop()` | Stop all cron tasks |
+
+### Event Handlers
+
+Register callbacks that fire when a job triggers:
+
+```typescript
+const scheduler = new CronScheduler(store);
+scheduler.onJobTrigger(async (job) => {
+  // Send the job's prompt to the agent for processing
+  await agent.handleMessage({ text: job.prompt, channel: job.channel });
+});
+```
+
+### Config-Defined Jobs
+
+Jobs defined in `augure.json5` are loaded at startup:
+
+```json5
+{
+  scheduler: {
+    heartbeatInterval: "30m",
+    jobs: [
+      {
+        id: "morning-check",
+        cron: "0 8 * * *",          // Every day at 8am
+        prompt: "Check for anything urgent today.",
+        channel: "telegram",
+      },
+    ],
+  },
+}
+```
+
+## JobStore
+
+The `JobStore` persists jobs to a JSON file on disk. This ensures runtime-created jobs (via the `schedule` tool) survive restarts.
+
+```typescript
+export class JobStore {
+  constructor(private readonly filePath: string) {}
+
+  async load(): Promise<Job[]> {
+    // Read from disk, return [] if file doesn't exist
+  }
+
+  async save(jobs: Job[]): Promise<void> {
+    // Write all jobs to disk as JSON
+  }
+}
+```
+
+The scheduler automatically persists after every `addJob` or `removeJob` call. Persist operations are chained sequentially to prevent race conditions.
+
+## Heartbeat System
+
+The `Heartbeat` class runs periodic proactive check-ins using a cheap LLM. At each tick, it:
+
+1. Loads the agent's memory (currently reads `observations.md`)
+2. Sends the memory to the monitoring LLM with the current timestamp
+3. Parses the response for an `ACTION:` directive
+4. If an action is needed (not `"none"`), triggers the provided callback
+
+```typescript
+export class Heartbeat {
+  async tick(): Promise<void> {
+    const memoryContent = await this.loadMemory();
+
+    const messages: Message[] = [
+      { role: "system", content: HEARTBEAT_PROMPT },
+      {
+        role: "user",
+        content: `Current time: ${new Date().toISOString()}\n\n## Memory\n${memoryContent}`,
+      },
+    ];
+
+    const response = await this.config.llm.chat(messages);
+    const action = this.parseAction(response.content);
+
+    if (action && action.toLowerCase() !== "none") {
+      await this.config.onAction(action);
+    }
+  }
+
+  start(): void {
+    this.timer = setInterval(() => {
+      this.tick().catch((err) =>
+        console.error("[augure] Heartbeat error:", err),
+      );
+    }, this.config.intervalMs);
+  }
+
+  stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = undefined;
+    }
+  }
+}
+```
+
+The heartbeat prompt instructs the LLM to review memory and decide if any proactive action is needed -- time-sensitive tasks, reminders, or scheduled checks.
+
+## parseInterval Utility
+
+The `parseInterval` function converts human-readable duration strings to milliseconds:
+
+```typescript
+parseInterval("30m")  // 1_800_000 (30 minutes)
+parseInterval("1h")   // 3_600_000 (1 hour)
+parseInterval("300s") // 300_000 (5 minutes)
+```
+
+Supported units:
+
+| Unit | Suffix | Multiplier |
+|------|--------|------------|
+| Seconds | `s` | 1,000 |
+| Minutes | `m` | 60,000 |
+| Hours | `h` | 3,600,000 |
+
+This is used to parse the `scheduler.heartbeatInterval` config value.

@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "---Getting Started---",
+    "index",
+    "configuration",
+    "architecture",
+    "---Features---",
+    "memory",
+    "scheduler",
+    "tools",
+    "---Operations---",
+    "deployment"
+  ]
+}
