@@ -42,6 +42,30 @@ importers:
         specifier: ^1.40.0
         version: 1.40.0
 
+  packages/cli:
+    dependencies:
+      '@augure/channels':
+        specifier: workspace:*
+        version: link:../channels
+      '@augure/core':
+        specifier: workspace:*
+        version: link:../core
+      '@augure/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@augure/scheduler':
+        specifier: workspace:*
+        version: link:../scheduler
+      '@augure/tools':
+        specifier: workspace:*
+        version: link:../tools
+      '@augure/types':
+        specifier: workspace:*
+        version: link:../types
+      citty:
+        specifier: ^0.2.1
+        version: 0.2.1
+
   packages/core:
     dependencies:
       '@augure/channels':
@@ -650,6 +674,9 @@ packages:
   chai@6.2.2:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
+
+  citty@0.2.1:
+    resolution: {integrity: sha512-kEV95lFBhQgtogAPlQfJJ0WGVSokvLr/UEoFPiKKOXF7pl98HfUVUD0ejsuTCld/9xH9vogSywZ5KqHzXrZpqg==}
 
   cli-width@4.1.0:
     resolution: {integrity: sha512-ouuZd4/dm2Sw5Gmqy6bGyNNNe1qt9RpmxveLSO7KcgsTnU7RXfsw+/bukWGo1abgBiMAic068rclZsO4IWmmxQ==}
@@ -1696,6 +1723,8 @@ snapshots:
       balanced-match: 4.0.3
 
   chai@6.2.2: {}
+
+  citty@0.2.1: {}
 
   cli-width@4.1.0: {}
 

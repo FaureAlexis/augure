@@ -1,0 +1,35 @@
+{
+  "name": "augure",
+  "version": "0.1.0",
+  "description": "Augure — your proactive AI agent",
+  "type": "module",
+  "bin": {
+    "augure": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@augure/core": "workspace:*",
+    "@augure/channels": "workspace:*",
+    "@augure/memory": "workspace:*",
+    "@augure/scheduler": "workspace:*",
+    "@augure/tools": "workspace:*",
+    "@augure/types": "workspace:*",
+    "citty": "^0.2.1"
+  },
+  "keywords": ["ai", "agent", "assistant", "telegram", "llm"],
+  "license": "MIT"
+}
