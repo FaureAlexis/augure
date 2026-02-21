@@ -1,5 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CronScheduler } from "../cron.js";
+import { JobStore } from "../jobs.js";
 import type { Job } from "@augure/types";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
@@ -62,5 +66,59 @@ describe("CronScheduler", () => {
     await expect(scheduler.triggerJob("nope")).rejects.toThrow(
       "Job not found: nope",
     );
+  });
+});
+
+describe("CronScheduler with persistence", () => {
+  let dir: string;
+  let store: JobStore;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "sched-test-"));
+    store = new JobStore(join(dir, "jobs.json"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("should persist jobs when added", async () => {
+    const scheduler = new CronScheduler(store);
+    scheduler.addJob(makeJob());
+    scheduler.stop();
+
+    // Wait for async persist
+    await new Promise((r) => setTimeout(r, 50));
+
+    const loaded = await store.load();
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0].id).toBe("job-1");
+  });
+
+  it("should persist after removal", async () => {
+    const scheduler = new CronScheduler(store);
+    scheduler.addJob(makeJob({ id: "a" }));
+    scheduler.addJob(makeJob({ id: "b" }));
+    scheduler.removeJob("a");
+    scheduler.stop();
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const loaded = await store.load();
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0].id).toBe("b");
+  });
+
+  it("should load persisted jobs on loadPersistedJobs()", async () => {
+    await store.save([makeJob({ id: "restored" })]);
+
+    const scheduler = new CronScheduler(store);
+    await scheduler.loadPersistedJobs();
+
+    const jobs = scheduler.listJobs();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].id).toBe("restored");
+
+    scheduler.stop();
   });
 });
