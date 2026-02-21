@@ -8,6 +8,8 @@ import type {
   ToolsConfig,
   SecurityConfig,
 } from "./config.js";
+import type { MemoryStore } from "./memory.js";
+import type { Scheduler } from "./scheduler.js";
 
 export interface ToolResult {
   success: boolean;
@@ -30,6 +32,8 @@ export interface NativeTool {
 
 export interface ToolContext {
   config: AppConfig;
+  memory: MemoryStore;
+  scheduler: Scheduler;
 }
 
 export interface AppConfig {
