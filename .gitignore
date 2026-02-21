@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+.env
+.env.local
+logs/
+!logs/.gitkeep
+skills/*/runs/
+coverage/
+.DS_Store
