@@ -53,10 +53,16 @@ export interface SchedulerConfig {
 
 export interface SandboxConfig {
   runtime: "docker";
+  image?: string;
   defaults: {
     timeout: number;
     memoryLimit: string;
     cpuLimit: string;
+  };
+  codeAgent?: {
+    command: string;
+    args?: string[];
+    env?: Record<string, string>;
   };
 }
 

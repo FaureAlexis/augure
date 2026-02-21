@@ -10,6 +10,7 @@ import type {
 } from "./config.js";
 import type { MemoryStore } from "./memory.js";
 import type { Scheduler } from "./scheduler.js";
+import type { ContainerPool } from "./sandbox.js";
 
 export interface ToolResult {
   success: boolean;
@@ -34,6 +35,7 @@ export interface ToolContext {
   config: AppConfig;
   memory: MemoryStore;
   scheduler: Scheduler;
+  pool?: ContainerPool;
 }
 
 export interface AppConfig {
