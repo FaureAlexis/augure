@@ -18,7 +18,15 @@ export const startCommand = defineCommand({
     const configPath = resolve(args.config);
     console.log(`[augure] Starting with config: ${configPath}`);
 
-    const { startAgent } = await import("@augure/core");
-    await startAgent(configPath);
+    try {
+      const { startAgent } = await import("@augure/core");
+      await startAgent(configPath);
+    } catch (err) {
+      console.error(
+        "[augure] Fatal error:",
+        err instanceof Error ? err.message : err,
+      );
+      process.exit(1);
+    }
   },
 });

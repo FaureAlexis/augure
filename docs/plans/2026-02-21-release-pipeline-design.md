@@ -16,7 +16,8 @@ Setup the full release lifecycle for Augure: npm package publishing, CLI entry p
 | Release channels | `stable` (latest) + `beta` (pre-release mode changesets) |
 | Branche par défaut | `master` |
 | CI | GitHub Actions: `ci.yml` (PR) + `release.yml` (publish) |
-| npm auth | Secret `NPM_TOKEN` |
+| npm auth | `setup-node` registry-url + `NODE_AUTH_TOKEN` secret |
+| Root package name | `augure-monorepo` (private, avoids collision with CLI) |
 | Install | `npm install -g augure` |
 | Commandes CLI | `augure init`, `augure start`, `augure --version` |
 | Update | `npm update -g augure` |
@@ -110,9 +111,9 @@ Beta flow (when needed):
 **release.yml** — triggers on push to master (after "Version Packages" PR merge):
 ```yaml
 - checkout
-- setup node 22 + pnpm + npm auth (NPM_TOKEN secret)
+- setup node 22 + pnpm + registry-url (uses NODE_AUTH_TOKEN)
 - pnpm install + build + test
-- changeset publish
+- changeset publish (no double-build — release script is just `changeset publish`)
 - create GitHub Release + tag
 ```
 
@@ -140,4 +141,12 @@ npm update -g augure
 
 ### Secrets Required
 
-- `NPM_TOKEN` — npm publish token (GitHub repo secret)
+- `NPM_TOKEN` — npm publish token (GitHub repo secret, exposed as `NODE_AUTH_TOKEN` in release workflow)
+
+### Post-Implementation Notes
+
+- **No `.npmrc` committed** — npm auth handled via `setup-node` `registry-url` option in CI
+- **Root package** renamed to `augure-monorepo` to avoid `pnpm --filter augure` ambiguity
+- **Version in CLI** read dynamically from `package.json` at runtime (not hardcoded)
+- **Tests excluded** from `dist/` via tsconfig `exclude` (not shipped to npm)
+- **Error handling** in `start` command wraps `startAgent` with try/catch for clean output

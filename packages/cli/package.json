@@ -31,7 +31,13 @@
     "citty": "^0.2.1"
   },
   "keywords": ["ai", "agent", "assistant", "telegram", "llm"],
+  "author": "Alexis",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexis/augure.git",
+    "directory": "packages/cli"
+  },
   "publishConfig": {
     "access": "public"
   }
