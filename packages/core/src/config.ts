@@ -53,11 +53,19 @@ const AppConfigSchema = z.object({
   }),
   sandbox: z.object({
     runtime: z.literal("docker"),
+    image: z.string().min(1).optional(),
     defaults: z.object({
       timeout: z.number().int().positive(),
       memoryLimit: z.string().min(1),
       cpuLimit: z.string().min(1),
     }),
+    codeAgent: z
+      .object({
+        command: z.string().min(1),
+        args: z.array(z.string()).optional(),
+        env: z.record(z.string(), z.string()).optional(),
+      })
+      .optional(),
   }),
   tools: z.object({
     webSearch: z

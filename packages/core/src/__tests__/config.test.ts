@@ -126,4 +126,28 @@ describe("loadConfig", () => {
   it("should throw on missing config file", async () => {
     await expect(loadConfig(join(tmpDir, "nope.json5"))).rejects.toThrow();
   });
+
+  it("should accept sandbox.image and sandbox.codeAgent fields", async () => {
+    const configPath = join(tmpDir, "config.json5");
+    const content = JSON.stringify({
+      ...validConfig,
+      sandbox: {
+        ...validConfig.sandbox,
+        image: "augure-sandbox:latest",
+        codeAgent: {
+          command: "claude-code",
+          args: ["--no-interactive"],
+          env: { ANTHROPIC_API_KEY: "sk-test" },
+        },
+      },
+    });
+
+    await writeFile(configPath, content);
+    const config = await loadConfig(configPath);
+
+    expect(config.sandbox.image).toBe("augure-sandbox:latest");
+    expect(config.sandbox.codeAgent?.command).toBe("claude-code");
+    expect(config.sandbox.codeAgent?.args).toEqual(["--no-interactive"]);
+    expect(config.sandbox.codeAgent?.env).toEqual({ ANTHROPIC_API_KEY: "sk-test" });
+  });
 });
