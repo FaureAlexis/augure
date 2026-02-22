@@ -2,19 +2,22 @@ import { describe, it, expect, afterAll } from "vitest";
 import Dockerode from "dockerode";
 import { DockerContainerPool } from "../pool.js";
 
+const TEST_IMAGE = "node:22-slim";
 const docker = new Dockerode();
-let isDockerAvailable = false;
+let isDockerReady = false;
 
 try {
   await docker.ping();
-  isDockerAvailable = true;
+  // Also verify the test image is available locally
+  await docker.getImage(TEST_IMAGE).inspect();
+  isDockerReady = true;
 } catch {
-  // Docker not available — skip
+  // Docker not available or image not pulled — skip
 }
 
-describe.skipIf(!isDockerAvailable)("integration: real Docker", () => {
+describe.skipIf(!isDockerReady)("integration: real Docker", () => {
   const pool = new DockerContainerPool(docker, {
-    image: "node:22-slim",
+    image: TEST_IMAGE,
     maxTotal: 2,
   });
 
