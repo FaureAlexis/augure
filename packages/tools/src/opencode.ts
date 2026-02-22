@@ -47,13 +47,23 @@ export const opencodeTool: NativeTool = {
     }
 
     const defaults = ctx.config.sandbox.defaults;
-    const container = await ctx.pool.acquire({
-      trust: trust ?? "trusted",
-      timeout: timeout ?? defaults.timeout,
-      memory: defaults.memoryLimit,
-      cpu: defaults.cpuLimit,
-      env: agentConfig.env,
-    });
+    const effectiveTimeout = timeout ?? defaults.timeout;
+
+    // I9: catch acquire failures
+    let container;
+    try {
+      container = await ctx.pool.acquire({
+        trust: trust ?? "trusted",
+        timeout: effectiveTimeout,
+        memory: defaults.memoryLimit,
+        cpu: defaults.cpuLimit,
+      });
+    } catch (err) {
+      return {
+        success: false,
+        output: `Failed to acquire container: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
 
     try {
       const cmdParts = [agentConfig.command];
@@ -62,7 +72,7 @@ export const opencodeTool: NativeTool = {
       const command = cmdParts.join(" ");
 
       const result = await container.exec(command, {
-        timeout: timeout ?? defaults.timeout,
+        timeout: effectiveTimeout,
         env: agentConfig.env,
       });
 

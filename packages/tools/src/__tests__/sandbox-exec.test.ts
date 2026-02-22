@@ -92,6 +92,20 @@ describe("sandboxExecTool", () => {
     expect(result.output).toContain("Exit code: 1");
   });
 
+  it("should return error when acquire fails", async () => {
+    const pool = mockPool();
+    (pool.acquire as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("Pool limit reached"),
+    );
+    const ctx = makeCtx(pool);
+
+    const result = await sandboxExecTool.execute({ command: "echo hi" }, ctx);
+
+    expect(result.success).toBe(false);
+    expect(result.output).toContain("Failed to acquire container");
+    expect(result.output).toContain("Pool limit reached");
+  });
+
   it("should release container even on error", async () => {
     const container = mockContainer({
       exec: vi.fn().mockRejectedValue(new Error("exec timeout")),

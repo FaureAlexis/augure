@@ -36,16 +36,27 @@ export const sandboxExecTool: NativeTool = {
     }
 
     const defaults = ctx.config.sandbox.defaults;
-    const container = await ctx.pool.acquire({
-      trust: trust ?? "sandboxed",
-      timeout: timeout ?? defaults.timeout,
-      memory: defaults.memoryLimit,
-      cpu: defaults.cpuLimit,
-    });
+    const effectiveTimeout = timeout ?? defaults.timeout;
+
+    // I9: catch acquire failures
+    let container;
+    try {
+      container = await ctx.pool.acquire({
+        trust: trust ?? "sandboxed",
+        timeout: effectiveTimeout,
+        memory: defaults.memoryLimit,
+        cpu: defaults.cpuLimit,
+      });
+    } catch (err) {
+      return {
+        success: false,
+        output: `Failed to acquire container: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
 
     try {
       const result = await container.exec(command, {
-        timeout: timeout ?? defaults.timeout,
+        timeout: effectiveTimeout,
       });
 
       const parts: string[] = [];
