@@ -9,3 +9,5 @@ logs/
 skills/*/runs/
 coverage/
 .DS_Store
+# Generated at build from packages/cli/CHANGELOG.md
+apps/docs/content/docs/changelog.mdx

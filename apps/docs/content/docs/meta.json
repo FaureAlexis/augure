@@ -11,6 +11,8 @@
     "tools",
     "---Operations---",
     "cli",
-    "deployment"
+    "deployment",
+    "---Release---",
+    "changelog"
   ]
 }

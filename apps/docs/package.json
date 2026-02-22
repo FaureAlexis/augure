@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "tsx scripts/sync-changelog.ts",
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "tsx scripts/sync-changelog.ts && next build",
     "start": "next start"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "tsx": "^4.19.0",
     "@tailwindcss/postcss": "^4.2.0",
     "@types/mdx": "^2.0.0",
     "@types/react": "^19.0.0",
