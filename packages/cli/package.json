@@ -25,6 +25,8 @@
     "citty": "^0.2.1",
     "dockerode": "^4.0.9",
     "grammy": "^1.40.0",
+    "imapflow": "^1.2.10",
+    "nodemailer": "^6.10.1",
     "gray-matter": "^4.0.3",
     "json5": "^2.2.3",
     "node-cron": "^4.2.1",
