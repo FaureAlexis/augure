@@ -7,14 +7,5 @@
   "access": "public",
   "baseBranch": "master",
   "updateInternalDependencies": "patch",
-  "ignore": [
-    "@augure/types",
-    "@augure/core",
-    "@augure/channels",
-    "@augure/memory",
-    "@augure/scheduler",
-    "@augure/tools",
-    "@augure/sandbox",
-    "@augure/skills"
-  ]
+  "ignore": []
 }
