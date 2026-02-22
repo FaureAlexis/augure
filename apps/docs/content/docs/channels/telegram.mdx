@@ -1,0 +1,114 @@
+---
+title: Telegram
+description: Set up and configure the Telegram channel — bot creation, security, features, and troubleshooting
+---
+
+The Telegram channel connects Augure to Telegram using [grammY](https://grammy.dev/). It uses long-polling (no webhook, no inbound ports needed) and supports text messages, photos, and documents.
+
+## Prerequisites
+
+1. **Create a Telegram bot** — message [@BotFather](https://t.me/BotFather) on Telegram and follow the prompts to create a new bot. Save the bot token.
+
+2. **Find your Telegram user ID** — message [@userinfobot](https://t.me/userinfobot) to get your numeric user ID. You need this for the allowlist.
+
+3. **Set up your `.env` file**:
+   ```bash
+   TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+   ```
+
+## Configuration
+
+Add `channels.telegram` to your `augure.json5`:
+
+```json5
+{
+  channels: {
+    telegram: {
+      enabled: true,
+      botToken: "${TELEGRAM_BOT_TOKEN}",
+      allowedUsers: [123456789],       // Your Telegram user ID(s)
+      rejectMessage: "Unauthorized.",   // Optional: message sent to non-allowlisted users
+    },
+  },
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | `boolean` | Yes | Enable the Telegram channel |
+| `botToken` | `string` | Yes | Bot token from @BotFather (use `${ENV_VAR}`) |
+| `allowedUsers` | `number[]` | Yes | Array of Telegram user IDs allowed to interact |
+| `rejectMessage` | `string` | No | Message sent when an unauthorized user tries to message the bot |
+
+## How It Works
+
+1. **Long-polling** — The bot connects to Telegram's servers and waits for updates. No webhook setup or public URL needed.
+2. **Authorization** — Every incoming message is checked against `allowedUsers`. Unauthorized messages are logged and silently dropped (or rejected with `rejectMessage`).
+3. **Message processing** — Authorized messages are converted to an `IncomingMessage` and passed to the agent.
+4. **Response** — The agent's response goes through the middleware pipeline (markdown escaping, message splitting) and is sent back as a threaded reply.
+
+## Features
+
+### Text Messages
+
+All text messages from authorized users are processed by the agent. The agent responds in Telegram's MarkdownV2 format with automatic escaping.
+
+### Photos
+
+When you send a photo, Augure receives it as an attachment with a `fileId`. The caption (if any) becomes the message text. If no caption, the text defaults to `[Photo]`.
+
+### Documents
+
+Files (PDF, ZIP, etc.) are received as document attachments with filename and MIME type metadata. The caption becomes the message text, or defaults to `[Document: filename]`.
+
+### Reply Threading
+
+All responses are sent as quoted replies to the original message, keeping conversations organized.
+
+### Message Splitting
+
+Telegram has a 4096-character limit per message. Long responses are automatically split at paragraph or line boundaries, preserving code block formatting across chunks.
+
+### Conversation Isolation
+
+Each authorized user gets their own isolated conversation history. Messages from different users never interleave in the agent's context.
+
+## Commands
+
+These commands are intercepted before reaching the agent:
+
+| Command | Description |
+|---------|-------------|
+| `/pause` | Pause the agent — stops the scheduler but keeps direct messages active |
+| `/pause <skillId>` | Pause a specific skill |
+| `/resume` | Resume the agent and restart the scheduler |
+| `/kill` | Emergency stop — destroys all containers, stops scheduler, agent enters read-only mode |
+| `/status` | Show the current agent state (`running`, `paused`, or `killed`) |
+
+## Security
+
+- **Allowlist-only** — Only Telegram users whose numeric IDs are in `allowedUsers` can interact with the bot
+- **Audit logging** — Unauthorized access attempts are logged with the user ID and timestamp
+- **No inbound ports** — Long-polling is outbound-only, reducing attack surface
+- **Secrets in .env** — The bot token is never stored in the config file directly
+
+## Troubleshooting
+
+### Bot doesn't respond
+
+1. Check that `channels.telegram.enabled` is `true`
+2. Verify `TELEGRAM_BOT_TOKEN` is set in `.env`
+3. Confirm your user ID is in `allowedUsers`
+4. Check the console for `[augure] Telegram bot started` message
+
+### "Unauthorized" or no response
+
+Your Telegram user ID might not match what's in `allowedUsers`. Message [@userinfobot](https://t.me/userinfobot) to verify your ID.
+
+### Formatting errors
+
+If messages appear with broken formatting, the MarkdownV2 escaping should handle most cases. If an LLM response still breaks, the bot falls back to sending as plain text.
+
+### Long messages cut off
+
+This shouldn't happen — messages over 4096 characters are automatically split. If you see truncation, check the logs for send errors.
