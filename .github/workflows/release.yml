@@ -3,6 +3,10 @@ name: Release
 on:
   push:
     branches: [master]
+    paths:
+      - "packages/**"
+      - ".changeset/**"
+      - "pnpm-lock.yaml"
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
