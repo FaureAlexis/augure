@@ -1,0 +1,27 @@
+{
+  "name": "@augure/code-mode",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@augure/types": "workspace:*",
+    "@augure/tools": "workspace:*",
+    "@augure/sandbox": "workspace:*",
+    "esbuild": "^0.25.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist .turbo"
+  }
+}
