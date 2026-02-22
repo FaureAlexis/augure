@@ -1,0 +1,148 @@
+---
+title: CLI Reference
+description: Command-line interface for managing the Augure agent, skills, and configuration
+---
+
+Augure ships a CLI (`augure`) for managing the agent lifecycle, skills, and configuration.
+
+## Install
+
+```bash
+npm install -g augure
+```
+
+## Commands
+
+### `augure init`
+
+Scaffolds a new Augure project in the current directory:
+
+```bash
+augure init
+```
+
+Creates two files:
+- `augure.json5` -- default configuration (see [Configuration](/docs/configuration))
+- `.env` -- template for secret environment variables
+
+### `augure start`
+
+Starts the agent in the foreground:
+
+```bash
+augure start                        # uses ./augure.json5
+augure start -c /path/to/config     # custom config path
+```
+
+| Flag | Alias | Default | Description |
+|------|-------|---------|-------------|
+| `--config` | `-c` | `./augure.json5` | Path to config file |
+
+### `augure skills`
+
+Manage skills from the command line. All subcommands accept `--config, -c` to specify a custom config path (default: `./augure.json5`).
+
+#### `augure skills list`
+
+List all skills with their status, version, trigger, and last update date:
+
+```bash
+augure skills list
+```
+
+```
+ID                      NAME                        STATUS    V   TRIGGER           UPDATED
+apartment-search        Recherche apparts           active    3   cron 0 8 * * *    2026-02-22
+email-triage            Email Triage                paused    1   cron 0 9 * * *    2026-02-21
+health-check            Health Check                active    1   cron 0 6 * * *    2026-02-20
+```
+
+#### `augure skills show <id>`
+
+Display full details for a skill, including metadata and the markdown body:
+
+```bash
+augure skills show apartment-search
+```
+
+```
+ID:      apartment-search
+Name:    Recherche apparts
+Version: 3
+Status:  active
+Trigger: cron 0 8 * * *
+Tags:    housing, monitoring
+Created: 2026-02-21T10:00:00Z
+Updated: 2026-02-22T08:15:00Z
+Code:    yes
+Tests:   yes
+
+# Recherche d'appartements Bordeaux
+...
+```
+
+#### `augure skills run <id>`
+
+Trigger a skill execution manually. This starts a Docker container, runs the skill code, and displays the result:
+
+```bash
+augure skills run apartment-search
+```
+
+```
+▲ Running skill apartment-search...
+Status:   OK
+Duration: 4230ms
+Output:   Found 3 new listings
+```
+
+The container is destroyed after execution regardless of success or failure.
+
+#### `augure skills pause <id>`
+
+Pause a skill. Paused skills are skipped by the cron scheduler:
+
+```bash
+augure skills pause apartment-search
+```
+
+#### `augure skills resume <id>`
+
+Resume a previously paused skill:
+
+```bash
+augure skills resume apartment-search
+```
+
+#### `augure skills delete <id>`
+
+Permanently delete a skill and all its files:
+
+```bash
+augure skills delete apartment-search
+```
+
+#### `augure skills logs <id>`
+
+Show the last 10 execution runs for a skill:
+
+```bash
+augure skills logs apartment-search
+```
+
+```
+TIMESTAMP                 OK    DURATION    OUTPUT
+2026-02-22T08:00:03Z      yes   4230ms      Found 3 new listings
+2026-02-22T07:00:01Z      yes   3890ms      No new listings
+2026-02-21T08:00:05Z      no    12340ms     Error: Timeout
+```
+
+## Skill ID Format
+
+All skill IDs must be **lowercase alphanumeric with hyphens** (e.g. `apartment-search`, `daily-digest`). This is enforced by the CLI to prevent path traversal.
+
+## Related
+
+- [Skills System](/docs/skills) -- how skills are created, tested, and self-healed
+- [Configuration](/docs/configuration) -- the `skills` section in `augure.json5`
+- [Scheduler](/docs/scheduler) -- cron triggers for skills
