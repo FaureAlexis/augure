@@ -1,0 +1,144 @@
+---
+title: Email Tool
+description: Read, search, and send emails via IMAP and SMTP
+---
+
+The `email` tool gives the agent access to an email account. It can list recent messages, read specific emails by UID, search with criteria, and send messages via SMTP.
+
+## Configuration
+
+Add `tools.email` to your `augure.json5`:
+
+```json5
+{
+  tools: {
+    email: {
+      imap: {
+        host: "imap.gmail.com",
+        port: 993,
+        user: "${EMAIL_USER}",
+        password: "${EMAIL_PASSWORD}"
+      },
+      smtp: {
+        host: "smtp.gmail.com",
+        port: 587,
+        user: "${EMAIL_USER}",
+        password: "${EMAIL_PASSWORD}"
+      }
+    }
+  }
+}
+```
+
+TLS is automatic: port 993 uses implicit TLS for IMAP, port 465 uses implicit TLS for SMTP, and port 587 uses STARTTLS.
+
+## Parameters
+
+| Parameter | Type | Required | Actions | Description |
+|-----------|------|----------|---------|-------------|
+| `action` | `"list" \| "read" \| "search" \| "send"` | Yes | all | The email action to perform |
+| `folder` | `string` | No (default: INBOX) | list, read, search | IMAP folder name |
+| `limit` | `number` | No (default: 10) | list, search | Maximum emails to return |
+| `uid` | `number` | Yes for read | read | Email UID to read |
+| `from` | `string` | No | search | Filter by sender address |
+| `subject` | `string` | No | search, send | Filter by subject (search) or email subject (send) |
+| `since` | `string` | No | search | ISO 8601 date -- emails since this date |
+| `unseen` | `boolean` | No | search | Only unread emails |
+| `to` | `string` | Yes for send | send | Recipient address |
+| `body` | `string` | Yes for send | send | Email body text |
+| `cc` | `string` | No | send | CC recipients |
+| `bcc` | `string` | No | send | BCC recipients |
+
+## Actions
+
+### list
+
+Returns recent emails from a folder, newest first.
+
+```json
+{
+  "name": "email",
+  "arguments": { "action": "list", "limit": 5 }
+}
+```
+
+Output:
+
+```
+1. [UNREAD] UID:105 Subject: Meeting tomorrow | From: alice@company.com | Date: 2025-06-15T10:00:00Z
+2. UID:104 Subject: Invoice #1234 | From: billing@service.com | Date: 2025-06-14T18:30:00Z
+3. [UNREAD] UID:103 Subject: Re: Project update | From: bob@company.com | Date: 2025-06-14T09:15:00Z
+```
+
+### read
+
+Reads a specific email by UID. The body is extracted from the text/plain MIME part (falls back to HTML with tags stripped). Long bodies are truncated at 4000 characters. The email is marked as read.
+
+```json
+{
+  "name": "email",
+  "arguments": { "action": "read", "uid": 105 }
+}
+```
+
+Output:
+
+```
+UID: 105
+Subject: Meeting tomorrow
+From: alice@company.com
+Date: 2025-06-15T10:00:00Z
+Status: unread
+
+Hi, just confirming our meeting tomorrow at 2pm.
+Let me know if the time still works for you.
+```
+
+### search
+
+Searches emails by criteria. At least one criterion is required.
+
+```json
+{
+  "name": "email",
+  "arguments": {
+    "action": "search",
+    "from": "alice@company.com",
+    "since": "2025-06-01",
+    "unseen": true
+  }
+}
+```
+
+### send
+
+Sends an email via SMTP. Requires `to`, `subject`, and `body`.
+
+```json
+{
+  "name": "email",
+  "arguments": {
+    "action": "send",
+    "to": "alice@company.com",
+    "subject": "Quick update",
+    "body": "The report is ready. I've attached the summary to the shared drive."
+  }
+}
+```
+
+Output:
+
+```
+Email sent. Message ID: <abc123@smtp.gmail.com>
+```
+
+## Connection Model
+
+Each tool call opens a fresh IMAP or SMTP connection and closes it when done. There is no persistent connection pool. For periodic mailbox checking, use the [scheduler](/docs/tools/schedule) to poll at a cron interval.
+
+## Security Notes
+
+- Use environment variables (`${EMAIL_PASSWORD}`) for credentials -- never hardcode passwords in config
+- IMAP connections use TLS by default on port 993
+- SMTP connections use STARTTLS on port 587 or implicit TLS on port 465
+- Email bodies are truncated to 4000 characters to avoid overwhelming the LLM context
