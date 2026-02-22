@@ -38,8 +38,12 @@ export const metadata: Metadata = {
     title: "Augure — Your Personal AI Agent That Sees, Learns & Acts",
     description:
       "Deploy an open-source AI agent on your server in 5 minutes. It learns your preferences, connects to your apps, and acts proactively — 24/7.",
+    url: "https://augure.dev",
     siteName: "Augure",
     type: "website",
+  },
+  other: {
+    "og:logo": "https://augure.dev/favicon.svg",
   },
   icons: {
     icon: "/favicon.svg",
