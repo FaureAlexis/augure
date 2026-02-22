@@ -25,6 +25,17 @@ import {
   Heartbeat,
   parseInterval,
 } from "@augure/scheduler";
+import {
+  SkillManager,
+  SkillGenerator,
+  SkillRunner,
+  SkillTester,
+  SkillHealer,
+  SkillSchedulerBridge,
+  SkillHub,
+  createSkillTools,
+  installBuiltins,
+} from "@augure/skills";
 import { resolve } from "node:path";
 
 const SYSTEM_PROMPT = `You are Augure, a personal AI assistant. You are proactive, helpful, and concise.
@@ -96,6 +107,55 @@ export async function startAgent(configPath: string): Promise<void> {
     maxTotal: config.security.maxConcurrentSandboxes,
   });
   console.log(`[augure] Container pool created (max: ${config.security.maxConcurrentSandboxes})`);
+
+  // Skills setup (optional — only if config.skills is present)
+  if (config.skills) {
+    const skillsPath = resolve(configPath, "..", config.skills.path);
+    const codingLLM = resolveLLMClient(config.llm, "coding");
+
+    const skillManager = new SkillManager(skillsPath);
+    const skillGenerator = new SkillGenerator(codingLLM);
+    const skillRunner = new SkillRunner({
+      pool,
+      manager: skillManager,
+      defaults: config.sandbox.defaults,
+    });
+    const skillTester = new SkillTester({
+      pool,
+      defaults: config.sandbox.defaults,
+    });
+    const skillHealer = new SkillHealer({
+      manager: skillManager,
+      generator: skillGenerator,
+      tester: skillTester,
+      maxAttempts: config.skills.maxFailures,
+      skillsPath,
+    });
+
+    // Install built-in skills (idempotent)
+    await installBuiltins(skillManager);
+
+    // Register skill tools
+    const hub = config.skills.hub
+      ? new SkillHub({ repo: config.skills.hub.repo, branch: config.skills.hub.branch ?? "main" })
+      : undefined;
+    const skillTools = createSkillTools({
+      manager: skillManager,
+      runner: skillRunner,
+      generator: skillGenerator,
+      healer: skillHealer,
+      hub,
+    });
+    for (const tool of skillTools) {
+      tools.register(tool);
+    }
+
+    // Sync cron-triggered skills with scheduler
+    const skillBridge = new SkillSchedulerBridge(scheduler, skillManager);
+    await skillBridge.syncAll();
+
+    console.log(`[augure] Skills system initialized at ${skillsPath}`);
+  }
 
   tools.setContext({ config, memory, scheduler, pool });
 

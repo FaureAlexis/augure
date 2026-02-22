@@ -11,6 +11,7 @@
     { "path": "../memory" },
     { "path": "../channels" },
     { "path": "../scheduler" },
-    { "path": "../sandbox" }
+    { "path": "../sandbox" },
+    { "path": "../skills" }
   ]
 }

@@ -115,6 +115,19 @@ const AppConfigSchema = z.object({
     allowedHosts: z.array(z.string()),
     maxConcurrentSandboxes: z.number().int().positive(),
   }),
+  skills: z
+    .object({
+      path: z.string().min(1).default("./skills"),
+      maxFailures: z.number().int().positive().default(3),
+      autoSuggest: z.boolean().default(true),
+      hub: z
+        .object({
+          repo: z.string().min(1),
+          branch: z.string().min(1).default("main"),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 function interpolateEnvVars(raw: string): string {

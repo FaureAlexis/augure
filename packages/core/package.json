@@ -23,6 +23,7 @@
     "@augure/memory": "workspace:*",
     "@augure/sandbox": "workspace:*",
     "@augure/scheduler": "workspace:*",
+    "@augure/skills": "workspace:*",
     "@augure/tools": "workspace:*",
     "@augure/types": "workspace:*",
     "dockerode": "^4.0.9",
