@@ -85,23 +85,14 @@ describe("daily-digest", () => {
 
 ## Lifecycle
 
-```
-TRIGGER (user request or agent suggestion)
-    |
-    v
-GENERATE (LLM creates skill.md + skill.ts + skill.test.ts)
-    |
-    v
-TEST (run tests in sandboxed Docker container)
-    |
-    v
-DEPLOY (save to disk, register cron if applicable)
-    |
-    v
-EXECUTE (run skill.ts in sandbox on schedule or manually)
-    |
-    v
-SELF-HEAL (on failure: LLM regenerates code, re-tests, pauses after N failures)
+```mermaid
+graph TD
+    A["TRIGGER\nuser request or agent suggestion"] --> B["GENERATE\nLLM creates skill.md + skill.ts + skill.test.ts"]
+    B --> C["TEST\nrun tests in sandboxed Docker container"]
+    C --> D["DEPLOY\nsave to disk, register cron if applicable"]
+    D --> E["EXECUTE\nrun skill.ts in sandbox on schedule or manually"]
+    E --> F["SELF-HEAL\non failure: regenerate, re-test, pause after N failures"]
+    F -->|"fix succeeded"| E
 ```
 
 ## SkillContext API

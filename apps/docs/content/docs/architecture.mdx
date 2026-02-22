@@ -35,29 +35,16 @@ The codebase is a pnpm monorepo with Turborepo for task orchestration:
 
 When a message arrives, the agent follows this loop:
 
-```
-Message arrives (Telegram, cron job, heartbeat)
-       |
-       v
-  Agent.handleMessage()
-       |
-       v
-  MemoryRetriever.retrieve()  -- load memory files within token budget
-       |
-       v
-  assembleContext()  -- build the full prompt
-       |
-       v
-  LLM.chat(messages)  -- call the model
-       |
-       v
-  Response has tool calls?
-       |
-    yes |          no
-       v            v
-  Execute tools     Return text response
-  Push results      Trigger ingestion (background)
-  Loop back to LLM
+```mermaid
+graph TD
+    A["Message arrives\n(Telegram, cron, heartbeat)"] --> B["Agent.handleMessage()"]
+    B --> C["MemoryRetriever.retrieve()\nload memory within token budget"]
+    C --> D["assembleContext()\nbuild the full prompt"]
+    D --> E["LLM.chat(messages)"]
+    E --> F{"Response has\ntool calls?"}
+    F -->|yes| G["Execute tools\nPush results"]
+    G --> E
+    F -->|no| H["Return text response\nTrigger ingestion (background)"]
 ```
 
 The agent loops up to `maxToolLoops` times (default: 10) to allow multi-step tool usage. When the LLM returns a plain text response (no tool calls), the loop ends and the response is sent to the user.
