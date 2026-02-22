@@ -102,3 +102,12 @@ export interface SecurityConfig {
   allowedHosts: string[];
   maxConcurrentSandboxes: number;
 }
+
+export interface AuditConfig {
+  path: string;
+  enabled: boolean;
+}
+
+export interface PersonaConfig {
+  path: string;
+}

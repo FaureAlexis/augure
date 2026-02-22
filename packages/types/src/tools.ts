@@ -7,6 +7,8 @@ import type {
   SandboxConfig,
   ToolsConfig,
   SecurityConfig,
+  AuditConfig,
+  PersonaConfig,
 } from "./config.js";
 import type { SkillsConfig } from "./skills.js";
 import type { MemoryStore } from "./memory.js";
@@ -49,4 +51,6 @@ export interface AppConfig {
   tools: ToolsConfig;
   security: SecurityConfig;
   skills?: SkillsConfig;
+  audit?: AuditConfig;
+  persona?: PersonaConfig;
 }
