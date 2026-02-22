@@ -1,6 +1,6 @@
 {
   "name": "augure",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Augure — your proactive AI agent",
   "type": "module",
   "bin": {
@@ -36,7 +36,13 @@
   "devDependencies": {
     "@types/dockerode": "^4.0.1"
   },
-  "keywords": ["ai", "agent", "assistant", "telegram", "llm"],
+  "keywords": [
+    "ai",
+    "agent",
+    "assistant",
+    "telegram",
+    "llm"
+  ],
   "author": "Alexis",
   "license": "MIT",
   "repository": {
