@@ -13,8 +13,8 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "test": "vitest run",
     "test:unit": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -22,19 +22,26 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@augure/core": "workspace:*",
-    "@augure/channels": "workspace:*",
-    "@augure/sandbox": "workspace:*",
-    "@augure/skills": "workspace:*",
-    "@augure/memory": "workspace:*",
-    "@augure/scheduler": "workspace:*",
-    "@augure/tools": "workspace:*",
-    "@augure/types": "workspace:*",
     "citty": "^0.2.1",
-    "dockerode": "^4.0.7"
+    "dockerode": "^4.0.9",
+    "grammy": "^1.40.0",
+    "gray-matter": "^4.0.3",
+    "json5": "^2.2.3",
+    "node-cron": "^4.2.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/dockerode": "^4.0.1"
+    "@augure/channels": "workspace:*",
+    "@augure/core": "workspace:*",
+    "@augure/memory": "workspace:*",
+    "@augure/sandbox": "workspace:*",
+    "@augure/scheduler": "workspace:*",
+    "@augure/skills": "workspace:*",
+    "@augure/tools": "workspace:*",
+    "@augure/types": "workspace:*",
+    "@types/dockerode": "^4.0.1",
+    "@types/node-cron": "^3.0.11",
+    "tsup": "^8.5.1"
   },
   "keywords": [
     "ai",

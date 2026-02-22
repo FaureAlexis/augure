@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { createRequire } from "node:module";
 import { defineCommand, runMain } from "citty";
 import { startCommand } from "./commands/start.js";
