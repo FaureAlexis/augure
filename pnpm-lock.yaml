@@ -123,6 +123,9 @@ importers:
       '@augure/memory':
         specifier: workspace:*
         version: link:../memory
+      '@augure/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
       '@augure/scheduler':
         specifier: workspace:*
         version: link:../scheduler
@@ -132,12 +135,19 @@ importers:
       '@augure/types':
         specifier: workspace:*
         version: link:../types
+      dockerode:
+        specifier: ^4.0.9
+        version: 4.0.9
       json5:
         specifier: ^2.2.3
         version: 2.2.3
       zod:
         specifier: ^4.3.6
         version: 4.3.6
+    devDependencies:
+      '@types/dockerode':
+        specifier: ^4.0.1
+        version: 4.0.1
 
   packages/memory:
     dependencies:

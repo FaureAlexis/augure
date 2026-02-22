@@ -9,7 +9,11 @@ import {
   scheduleTool,
   webSearchTool,
   httpTool,
+  sandboxExecTool,
+  opencodeTool,
 } from "@augure/tools";
+import Dockerode from "dockerode";
+import { DockerContainerPool } from "@augure/sandbox";
 import {
   FileMemoryStore,
   MemoryIngester,
@@ -67,6 +71,8 @@ export async function startAgent(configPath: string): Promise<void> {
   tools.register(scheduleTool);
   tools.register(webSearchTool);
   tools.register(httpTool);
+  tools.register(sandboxExecTool);
+  tools.register(opencodeTool);
 
   const jobStorePath = resolve(configPath, "..", "jobs.json");
   const jobStore = new JobStore(jobStorePath);
@@ -83,7 +89,15 @@ export async function startAgent(configPath: string): Promise<void> {
     }
   }
 
-  tools.setContext({ config, memory, scheduler });
+  // Create container pool
+  const docker = new Dockerode();
+  const pool = new DockerContainerPool(docker, {
+    image: config.sandbox.image ?? "augure-sandbox:latest",
+    maxTotal: config.security.maxConcurrentSandboxes,
+  });
+  console.log(`[augure] Container pool created (max: ${config.security.maxConcurrentSandboxes})`);
+
+  tools.setContext({ config, memory, scheduler, pool });
 
   const agent = new Agent({
     llm,
@@ -151,10 +165,12 @@ export async function startAgent(configPath: string): Promise<void> {
     `[augure] Scheduler started with ${scheduler.listJobs().length} jobs. Heartbeat every ${config.scheduler.heartbeatInterval}.`,
   );
 
-  const shutdown = () => {
+  const shutdown = async () => {
     console.log("\n[augure] Shutting down...");
     heartbeat.stop();
     scheduler.stop();
+    await pool.destroyAll();
+    console.log("[augure] All containers destroyed");
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

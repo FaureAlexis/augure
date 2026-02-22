@@ -21,10 +21,15 @@
   "dependencies": {
     "@augure/channels": "workspace:*",
     "@augure/memory": "workspace:*",
+    "@augure/sandbox": "workspace:*",
     "@augure/scheduler": "workspace:*",
     "@augure/tools": "workspace:*",
     "@augure/types": "workspace:*",
+    "dockerode": "^4.0.9",
     "json5": "^2.2.3",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^4.0.1"
   }
 }
