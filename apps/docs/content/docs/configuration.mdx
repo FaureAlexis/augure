@@ -68,8 +68,14 @@ If a referenced variable is missing, the agent refuses to start. Keep all secret
     jobs: [
       {
         id: "morning-check",
-        cron: "0 8 * * *",
+        cron: "0 8 * * *",              // recurring
         prompt: "Check for anything that needs my attention today.",
+        channel: "telegram",
+      },
+      {
+        id: "remind-deadline",
+        runAt: "2026-03-15T09:00:00Z",  // one-shot, auto-removed after execution
+        prompt: "Rappelle le deadline du projet.",
         channel: "telegram",
       },
     ],
@@ -197,19 +203,20 @@ Controls the filesystem-based memory system.
 
 ### scheduler
 
-Cron-based job scheduling and proactive heartbeat.
+Job scheduling (recurring and one-shot) and proactive heartbeat.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `heartbeatInterval` | `string` | Yes | Interval between heartbeat checks (e.g. `"30m"`, `"1h"`, `"300s"`) |
 | `jobs` | `SchedulerJobConfig[]` | Yes | Array of scheduled jobs |
 
-Each job:
+Each job must have either `cron` or `runAt`:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | `string` | Unique job identifier |
-| `cron` | `string` | Cron expression (validated by `node-cron`) |
+| `cron` | `string` | Cron expression for recurring jobs (validated by `node-cron`) |
+| `runAt` | `string` | ISO 8601 date for one-shot jobs (e.g. `"2026-03-15T14:00:00Z"`) |
 | `prompt` | `string` | The prompt sent to the agent when the job triggers |
 | `channel` | `string` | Which channel to send results to |
 
