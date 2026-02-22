@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { parse as parseJSON5 } from "json5";
+import JSON5 from "json5";
 import { z } from "zod";
 import type { AppConfig } from "@augure/types";
 
@@ -154,6 +154,6 @@ function interpolateEnvVars(raw: string): string {
 export async function loadConfig(path: string): Promise<AppConfig> {
   const raw = await readFile(path, "utf-8");
   const interpolated = interpolateEnvVars(raw);
-  const parsed = parseJSON5(interpolated);
+  const parsed = JSON5.parse(interpolated);
   return AppConfigSchema.parse(parsed);
 }
