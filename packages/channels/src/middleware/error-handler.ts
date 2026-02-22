@@ -5,7 +5,8 @@ export interface RetryOptions {
 
 function isRetryable(error: unknown): boolean {
   if (error instanceof Error) {
-    const status = (error as Error & { status?: number }).status;
+    const err = error as Error & { status?: number; error_code?: number };
+    const status = err.status ?? err.error_code;
     // Retry on rate limit (429) and server errors (5xx)
     if (status === 429 || (status !== undefined && status >= 500)) return true;
     // Don't retry client errors (400-499 except 429)
