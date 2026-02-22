@@ -10,12 +10,13 @@ export async function GET(req: NextRequest) {
   const title = searchParams.get("title") ?? "Documentation";
   const description = searchParams.get("description") ?? "";
 
-  const dmSansBold = await readFile(
-    join(process.cwd(), "assets/DM_Sans-Bold.ttf"),
-  );
-  const dmSansRegular = await readFile(
-    join(process.cwd(), "assets/DM_Sans-Regular.ttf"),
-  );
+  const [dmSansBold, dmSansRegular, svgRaw] = await Promise.all([
+    readFile(join(process.cwd(), "assets/DM_Sans-Bold.ttf")),
+    readFile(join(process.cwd(), "assets/DM_Sans-Regular.ttf")),
+    readFile(join(process.cwd(), "public/favicon.svg"), "base64"),
+  ]);
+
+  const mascotSrc = `data:image/svg+xml;base64,${svgRaw}`;
 
   return new ImageResponse(
     (
@@ -44,8 +45,9 @@ export async function GET(req: NextRequest) {
           }}
         />
 
-        {/* Top: brand */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        {/* Top: mascot + brand */}
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <img src={mascotSrc} height="36" />
           <span
             style={{
               fontSize: 24,
@@ -108,16 +110,17 @@ export async function GET(req: NextRequest) {
           )}
         </div>
 
-        {/* Bottom: URL */}
+        {/* Bottom: CTA */}
         <div style={{ display: "flex", alignItems: "center" }}>
           <span
             style={{
               fontSize: 18,
-              color: "#44403c",
+              fontWeight: 700,
+              color: "#f59e0b",
               fontFamily: "DM Sans",
             }}
           >
-            augure.dev
+            Read more at augure.dev
           </span>
         </div>
       </div>

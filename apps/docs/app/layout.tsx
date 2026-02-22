@@ -35,9 +35,9 @@ export const metadata: Metadata = {
     "An open-source AI agent that runs 24/7. It sees, learns, and acts on your behalf.",
   metadataBase: new URL("https://augure.dev"),
   openGraph: {
-    title: "Augure",
+    title: "Augure — Your Personal AI Agent That Sees, Learns & Acts",
     description:
-      "An open-source AI agent that runs 24/7 on your server. No cloud dependency. No vendor lock-in.",
+      "Deploy an open-source AI agent on your server in 5 minutes. It learns your preferences, connects to your apps, and acts proactively — 24/7.",
     siteName: "Augure",
     type: "website",
   },
