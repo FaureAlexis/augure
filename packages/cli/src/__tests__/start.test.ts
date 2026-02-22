@@ -21,7 +21,7 @@ describe("augure start", () => {
       expect.unreachable("should have thrown");
     } catch (err) {
       const error = err as { stderr: string; code: number };
-      expect(error.stderr).toContain("Fatal error:");
+      expect(error.stderr).toContain("Fatal:");
     }
   });
 });

@@ -1,4 +1,5 @@
-import type { LLMClient, Message, IncomingMessage } from "@augure/types";
+import type { LLMClient, Message, IncomingMessage, Logger } from "@augure/types";
+import { noopLogger } from "@augure/types";
 import type { ToolRegistry } from "@augure/tools";
 import type { MemoryIngester, MemoryRetriever } from "@augure/memory";
 import { assembleContext } from "./context.js";
@@ -19,15 +20,18 @@ export interface AgentConfig {
   audit?: AuditLogger;
   guard?: ContextGuard;
   modelName?: string;
+  logger?: Logger;
 }
 
 export class Agent {
   private readonly config: AgentConfig;
+  private readonly log: Logger;
   private conversations: Map<string, Message[]> = new Map();
   private state: AgentState = "running";
 
   constructor(config: AgentConfig) {
     this.config = config;
+    this.log = config.logger ?? noopLogger;
   }
 
   getState(): AgentState {
@@ -84,6 +88,7 @@ export class Agent {
         persona: this.config.persona,
       });
 
+      this.log.debug(`LLM call #${loopCount + 1} (${messages.length} messages)`);
       const response = await this.config.llm.chat(messages, toolSchemas);
 
       if (response.toolCalls.length === 0) {
@@ -91,6 +96,10 @@ export class Agent {
           role: "assistant",
           content: response.content,
         });
+
+        this.log.debug(
+          `Response: ${response.usage.inputTokens}+${response.usage.outputTokens} tokens, ${Date.now() - start}ms`,
+        );
 
         // Audit: log the final chat response
         if (this.config.audit) {
@@ -114,7 +123,7 @@ export class Agent {
         if (this.config.ingester) {
           this.config.ingester
             .ingest(history)
-            .catch((err) => console.error("[augure] Ingestion error:", err));
+            .catch((err) => this.log.error("Ingestion error:", err));
         }
 
         return response.content;
@@ -128,10 +137,12 @@ export class Agent {
 
       for (const toolCall of response.toolCalls) {
         const toolStart = Date.now();
+        this.log.debug(`Tool: ${toolCall.name}`);
         const result = await this.config.tools.execute(
           toolCall.name,
           toolCall.arguments,
         );
+        this.log.debug(`Tool ${toolCall.name}: ${result.success ? "ok" : "fail"} (${Date.now() - toolStart}ms)`);
         history.push({
           role: "tool",
           content: result.output,

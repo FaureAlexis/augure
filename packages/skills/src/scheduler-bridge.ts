@@ -1,13 +1,19 @@
-import type { Scheduler } from "@augure/types";
+import type { Scheduler, Logger } from "@augure/types";
+import { noopLogger } from "@augure/types";
 import type { SkillManager } from "./manager.js";
 
 const JOB_PREFIX = "skill:";
 
 export class SkillSchedulerBridge {
+  private readonly log: Logger;
+
   constructor(
     private readonly scheduler: Scheduler,
     private readonly manager: SkillManager,
-  ) {}
+    logger?: Logger,
+  ) {
+    this.log = logger ?? noopLogger;
+  }
 
   /** Register cron jobs for all active cron-triggered skills */
   async syncAll(): Promise<void> {
@@ -32,7 +38,7 @@ export class SkillSchedulerBridge {
               enabled: true,
             });
           } catch (err) {
-            console.error(`[skills] Failed to register cron for ${skill.id}:`, err);
+            this.log.error(`Failed to register cron for ${skill.id}:`, err);
           }
         }
         existingJobs.delete(jobId);

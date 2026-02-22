@@ -1,4 +1,5 @@
-import type { LLMClient, Message, MemoryStore } from "@augure/types";
+import type { LLMClient, Message, MemoryStore, Logger } from "@augure/types";
+import { noopLogger } from "@augure/types";
 
 const HEARTBEAT_PROMPT = `You are a monitoring agent. Your job is to review the user's memory and decide if any proactive action is needed right now.
 
@@ -20,14 +21,19 @@ export interface HeartbeatConfig {
   memory: MemoryStore;
   intervalMs: number;
   onAction: (action: string) => void | Promise<void>;
+  logger?: Logger;
 }
 
 export class Heartbeat {
   private timer: ReturnType<typeof setInterval> | undefined;
+  private readonly log: Logger;
 
-  constructor(private readonly config: HeartbeatConfig) {}
+  constructor(private readonly config: HeartbeatConfig) {
+    this.log = config.logger ?? noopLogger;
+  }
 
   async tick(): Promise<void> {
+    this.log.debug("Heartbeat tick");
     const memoryContent = await this.loadMemory();
 
     const messages: Message[] = [
@@ -42,14 +48,17 @@ export class Heartbeat {
     const action = this.parseAction(response.content);
 
     if (action && action.toLowerCase() !== "none") {
+      this.log.debug(`Heartbeat action: ${action}`);
       await this.config.onAction(action);
+    } else {
+      this.log.debug("Heartbeat: no action needed");
     }
   }
 
   start(): void {
     this.timer = setInterval(() => {
       this.tick().catch((err) =>
-        console.error("[augure] Heartbeat error:", err),
+        this.log.error("Heartbeat error:", err),
       );
     }, this.config.intervalMs);
   }

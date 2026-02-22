@@ -1,10 +1,12 @@
-import type { LLMClient, LLMResponse, Message, FunctionSchema } from "@augure/types";
+import type { LLMClient, LLMResponse, Message, FunctionSchema, Logger } from "@augure/types";
+import { noopLogger } from "@augure/types";
 
 export interface OpenRouterConfig {
   apiKey: string;
   model: string;
   maxTokens: number;
   baseUrl?: string;
+  logger?: Logger;
 }
 
 export class OpenRouterClient implements LLMClient {
@@ -12,15 +14,19 @@ export class OpenRouterClient implements LLMClient {
   private readonly model: string;
   private readonly maxTokens: number;
   private readonly baseUrl: string;
+  private readonly log: Logger;
 
   constructor(config: OpenRouterConfig) {
     this.apiKey = config.apiKey;
     this.model = config.model;
     this.maxTokens = config.maxTokens;
     this.baseUrl = config.baseUrl ?? "https://openrouter.ai/api/v1";
+    this.log = config.logger ?? noopLogger;
   }
 
   async chat(messages: Message[], tools?: FunctionSchema[]): Promise<LLMResponse> {
+    this.log.debug(`Request: model=${this.model} messages=${messages.length} tools=${tools?.length ?? 0}`);
+
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -61,6 +67,10 @@ export class OpenRouterClient implements LLMClient {
     const data = (await response.json()) as OpenRouterResponse;
     const choice = data.choices[0];
 
+    this.log.debug(
+      `Response: ${response.status} ${data.usage.prompt_tokens}+${data.usage.completion_tokens} tokens`,
+    );
+
     return {
       content: choice.message.content ?? "",
       toolCalls: (choice.message.tool_calls ?? []).map((tc) => {
@@ -70,7 +80,7 @@ export class OpenRouterClient implements LLMClient {
             ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
             : {};
         } catch {
-          console.error(`[augure] Failed to parse tool call arguments for ${tc.function.name}:`, tc.function.arguments);
+          this.log.warn(`Failed to parse tool call arguments for ${tc.function.name}`);
         }
         return { id: tc.id, name: tc.function.name, arguments: args };
       }),

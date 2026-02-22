@@ -4,7 +4,9 @@ import type {
   ContainerOpts,
   ContainerPool,
   PoolStats,
+  Logger,
 } from "@augure/types";
+import { noopLogger } from "@augure/types";
 import { DockerContainer } from "./container.js";
 
 /* ------------------------------------------------------------------ */
@@ -47,6 +49,7 @@ export class DockerContainerPool implements ContainerPool {
   private readonly docker: Dockerode;
   private readonly image: string;
   private readonly maxTotal: number;
+  private readonly log: Logger;
 
   // C3: idle cache keyed by trust level to prevent cross-trust reuse
   private readonly idle = new Map<string, Set<Container>>([
@@ -58,11 +61,12 @@ export class DockerContainerPool implements ContainerPool {
 
   constructor(
     docker: Dockerode,
-    config: { image: string; maxTotal: number },
+    config: { image: string; maxTotal: number; logger?: Logger },
   ) {
     this.docker = docker;
     this.image = config.image;
     this.maxTotal = config.maxTotal;
+    this.log = config.logger ?? noopLogger;
   }
 
   private get idleCount(): number {
@@ -74,6 +78,8 @@ export class DockerContainerPool implements ContainerPool {
   /* ---- acquire ---- */
 
   async acquire(opts: ContainerOpts): Promise<Container> {
+    this.log.debug(`Acquiring container: trust=${opts.trust} memory=${opts.memory} cpu=${opts.cpu}`);
+
     // 1. Check idle cache for matching trust level
     const trustIdle = this.idle.get(opts.trust)!;
     const cached = trustIdle.values().next();
@@ -81,15 +87,18 @@ export class DockerContainerPool implements ContainerPool {
       const container = cached.value;
       trustIdle.delete(container);
       this.busy.add(container);
+      this.log.debug(`Reusing cached container: ${container.id.slice(0, 12)}`);
       return container;
     }
 
     // 2. If we still have capacity, create a new container
     const total = this.idleCount + this.busy.size;
     if (total >= this.maxTotal) {
+      this.log.error(`Pool limit reached: ${total}/${this.maxTotal}`);
       throw new Error("Pool limit reached");
     }
 
+    this.log.debug("Creating new container...");
     const raw = await this.docker.createContainer(
       this.buildCreateOpts(opts),
     );
@@ -102,6 +111,7 @@ export class DockerContainerPool implements ContainerPool {
     const container = new DockerContainer(raw, demux);
     this.containerTrust.set(container.id, opts.trust);
     this.busy.add(container);
+    this.log.debug(`Container created: ${container.id.slice(0, 12)}`);
     return container;
   }
 
@@ -117,6 +127,7 @@ export class DockerContainerPool implements ContainerPool {
 
     const trust = this.containerTrust.get(container.id) ?? "sandboxed";
     this.idle.get(trust)!.add(container);
+    this.log.debug(`Container released: ${container.id.slice(0, 12)} → idle (${trust})`);
   }
 
   /* ---- destroy ---- */

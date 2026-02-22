@@ -1,5 +1,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import type { Logger } from "@augure/types";
+import { noopLogger } from "@augure/types";
 
 export interface AuditEntry {
   ts: string;
@@ -27,17 +29,19 @@ export function summarize(text: string, maxLen = 200): string {
 
 export class FileAuditLogger implements AuditLogger {
   private readonly basePath: string;
+  private readonly logger: Logger;
   private pendingWrite: Promise<void> = Promise.resolve();
   private initialized = false;
 
-  constructor(basePath: string) {
+  constructor(basePath: string, logger?: Logger) {
     this.basePath = basePath;
+    this.logger = logger ?? noopLogger;
   }
 
   log(entry: AuditEntry): void {
     this.pendingWrite = this.pendingWrite
       .then(() => this.writeEntry(entry))
-      .catch((err) => console.error("[augure] Audit write error:", err));
+      .catch((err) => this.logger.error("Audit write error:", err));
   }
 
   async close(): Promise<void> {

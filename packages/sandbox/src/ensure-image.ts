@@ -1,5 +1,7 @@
 import { Readable } from "node:stream";
 import type Dockerode from "dockerode";
+import type { Logger } from "@augure/types";
+import { noopLogger } from "@augure/types";
 
 const DOCKERFILE = `FROM node:22-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \\
@@ -53,16 +55,24 @@ export function buildTar(content: string): Buffer {
 /**
  * Ensure a Docker image exists locally. If not, build it automatically.
  */
-export async function ensureImage(docker: Dockerode, imageName: string): Promise<void> {
+export async function ensureImage(
+  docker: Dockerode,
+  imageName: string,
+  logger?: Logger,
+): Promise<void> {
+  const log = logger ?? noopLogger;
+
+  log.debug(`Checking image: ${imageName}`);
   try {
     await docker.getImage(imageName).inspect();
+    log.debug("Image exists");
     return; // image exists
   } catch (err: unknown) {
     const statusCode = (err as { statusCode?: number }).statusCode;
     if (statusCode !== undefined && statusCode !== 404) throw err;
   }
 
-  console.log(`[augure] Image "${imageName}" not found, building...`);
+  log.info(`Image "${imageName}" not found, building...`);
 
   const tar = buildTar(DOCKERFILE);
   const stream = await docker.buildImage(Readable.from(tar), {
@@ -78,10 +88,13 @@ export async function ensureImage(docker: Dockerode, imageName: string): Promise
         else resolve();
       },
       (event: { stream?: string }) => {
-        if (event.stream) process.stdout.write(event.stream);
+        if (event.stream) {
+          const line = event.stream.trim();
+          if (line) log.debug(line);
+        }
       },
     );
   });
 
-  console.log(`[augure] Image "${imageName}" built successfully`);
+  log.info(`Image "${imageName}" built`);
 }

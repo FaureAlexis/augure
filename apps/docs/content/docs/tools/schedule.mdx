@@ -39,7 +39,7 @@ Output:
 
 ```
 - morning-check: "Check for anything urgent today." @ cron: 0 8 * * * (enabled)
-- remind-meeting: "Rappelle la réunion avec Pierre" @ runAt: 2026-03-15T14:00:00Z (enabled)
+- remind-meeting: "Remind about the meeting with Pierre" @ runAt: 2026-03-15T14:00:00Z (enabled)
 ```
 
 If there are no jobs, returns `"No scheduled jobs."`.
@@ -75,7 +75,7 @@ Created job weather-daily (recurring)
     "action": "create",
     "id": "remind-meeting",
     "runAt": "2026-03-15T14:00:00Z",
-    "prompt": "Rappelle à Alexis sa réunion avec Pierre dans 15 minutes."
+    "prompt": "Remind Alexis about his meeting with Pierre in 15 minutes."
   }
 }
 ```

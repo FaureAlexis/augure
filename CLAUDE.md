@@ -37,7 +37,7 @@ pnpm release              # Publish to npm
 @augure/types (zero deps — shared interfaces/contracts)
     ↑
     ├── @augure/memory     (file-based store + LLM ingestion/retrieval)
-    ├── @augure/tools      (NativeTool registry + 7 built-in tools)
+    ├── @augure/tools      (NativeTool registry + 9 built-in tools)
     ├── @augure/channels   (Telegram via grammY, middleware pipeline)
     ├── @augure/scheduler  (node-cron + heartbeat + job persistence)
     ├── @augure/sandbox    (Docker container pool with trust levels)
@@ -61,12 +61,14 @@ The Agent (`packages/core/src/agent.ts`) runs a message → LLM → tool-call �
 - **Config via `augure.json5`**: Supports `${ENV_VAR}` interpolation, validated with Zod. Multi-model LLM routing (default/reasoning/ingestion/monitoring/coding).
 - **Docker sandboxing**: Code execution isolated in containers with trust levels, memory/CPU limits, network restrictions.
 - **Skills system**: LLM-generated code units with YAML frontmatter, auto-tested in sandbox, self-healing on failure.
+- **Structured logging**: `Logger` interface in `@augure/types` with `noopLogger` default. `createLogger()` in `@augure/core` produces colored, leveled output (`▲ HH:MM:SS.mmm LVL scope`). Subsystems receive child loggers via DI (`log.child("sandbox")`). Use `augure start --debug` for debug-level output.
 
 ## Code Conventions
 
 - All imports use `.js` extensions (ESM requirement): `import { foo } from "./bar.js"`
 - Tests live in `packages/*/src/__tests__/*.test.ts` (vitest with describe/it/expect)
 - Most packages build with `tsc`; the CLI (`augure`) builds with `tsup`
+- Use the `Logger` interface from `@augure/types` for logging — never use raw `console.log/warn/error`
 - `@typescript-eslint/no-explicit-any` is an error — avoid `any`
 - Unused variables must be prefixed with `_`
 - Pre-commit hook runs `pnpm lint && pnpm typecheck`

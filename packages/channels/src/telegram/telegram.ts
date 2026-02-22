@@ -1,5 +1,6 @@
 import { Bot } from "grammy";
-import type { Channel, IncomingMessage, OutgoingMessage } from "@augure/types";
+import type { Channel, IncomingMessage, OutgoingMessage, Logger } from "@augure/types";
+import { noopLogger } from "@augure/types";
 import { createOutgoingPipeline } from "../pipeline.js";
 import { createSplitMessageMiddleware } from "../middleware/split-message.js";
 import { withRetry } from "../middleware/error-handler.js";
@@ -10,6 +11,7 @@ export interface TelegramConfig {
   botToken: string;
   allowedUsers: number[];
   rejectMessage?: string;
+  logger?: Logger;
 }
 
 export class TelegramChannel implements Channel {
@@ -18,14 +20,16 @@ export class TelegramChannel implements Channel {
   private allowedUsers: Set<number>;
   private handlers: ((message: IncomingMessage) => Promise<void>)[] = [];
   private sendPipeline: ((message: OutgoingMessage) => Promise<void>) | undefined;
+  private readonly log: Logger;
 
   constructor(config: TelegramConfig) {
+    this.log = config.logger ?? noopLogger;
     this.bot = new Bot(config.botToken);
     this.allowedUsers = new Set(config.allowedUsers);
 
     // Error handler
     this.bot.catch((err) => {
-      console.error("[augure:telegram] Bot error:", err.message ?? err);
+      this.log.error("Bot error:", err.message ?? err);
     });
 
     // Text message handler
@@ -79,7 +83,7 @@ export class TelegramChannel implements Channel {
         // Fallback: send as plain text (no formatting)
         await this.bot.api.sendMessage(Number(msg.userId), msg.text, replyOpts)
           .catch((fallbackErr) => {
-            console.error("[augure:telegram] Fallback send also failed:", fallbackErr);
+            this.log.error("Fallback send also failed:", fallbackErr);
             throw fallbackErr;
           });
       });
@@ -96,8 +100,8 @@ export class TelegramChannel implements Channel {
   }
 
   private handleRejected(userId: number, unixTimestamp: number, rejectMessage?: string): void {
-    console.warn(
-      `[augure:telegram] Rejected message from unauthorized user ${userId} at ${new Date(unixTimestamp * 1000).toISOString()}`,
+    this.log.warn(
+      `Rejected message from unauthorized user ${userId} at ${new Date(unixTimestamp * 1000).toISOString()}`,
     );
     if (rejectMessage) {
       this.bot.api
