@@ -6,12 +6,48 @@ description: Production setup with Docker Compose, environment variables, and se
 ## Requirements
 
 - **VPS**: 2 vCPU / 4 GB RAM minimum (Hetzner CX22 at ~4 EUR/mo, DigitalOcean at $24/mo)
-- **Docker** and **Docker Compose** installed
-- **Node.js 22+** (for local development only; production runs entirely in Docker)
+- **Docker** installed (required for sandbox execution)
+- **Node.js 22+** (for npm install method)
+
+## Install via npm
+
+The simplest way to deploy Augure on a server:
+
+```bash
+npm install -g augure
+augure init              # generates augure.json5 + .env
+# Edit .env with your API keys
+# Edit augure.json5 with your preferences
+augure start
+```
+
+You can run this inside a `tmux` or `screen` session, or create a systemd service:
+
+```ini
+# /etc/systemd/system/augure.service
+[Unit]
+Description=Augure AI Agent
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=augure
+WorkingDirectory=/home/augure
+ExecStart=/usr/bin/npx augure start
+Restart=unless-stopped
+EnvironmentFile=/home/augure/.env
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable augure --now
+```
 
 ## Docker Compose
 
-Augure deploys as a single Docker Compose service:
+Alternatively, Augure deploys as a single Docker Compose service:
 
 ```yaml
 services:
@@ -52,7 +88,7 @@ TAVILY_API_KEY=tvly-abc123...
 
 Environment variables are interpolated into the config at startup using `${VAR_NAME}` syntax. If a referenced variable is missing, the agent refuses to start.
 
-## Quick Start
+## Quick Start (Docker Compose)
 
 ```bash
 # 1. Clone

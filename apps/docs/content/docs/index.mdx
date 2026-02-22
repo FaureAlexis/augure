@@ -22,11 +22,24 @@ The name comes from French/Latin for "oracle, the one who foresees." Augure anti
 
 ### Prerequisites
 
-- A VPS with Docker and Docker Compose (2 vCPU / 4 GB RAM minimum)
 - An [OpenRouter](https://openrouter.ai/) API key
 - A [Telegram Bot Token](https://core.telegram.org/bots#how-do-i-create-a-bot)
+- **Docker** installed (required for sandbox execution)
+- **Node.js 22+** (for npm install method)
 
-### 1. Clone and configure
+### Option A -- Install via npm (recommended)
+
+```bash
+npm install -g augure
+augure init        # generates augure.json5 + .env in the current directory
+# Edit .env with your API keys
+# Edit augure.json5 with your preferences
+augure start
+```
+
+### Option B -- Docker Compose
+
+For a fully containerized setup on a VPS:
 
 ```bash
 git clone https://github.com/FaureAlexis/augure.git
@@ -39,15 +52,11 @@ cp .env.example .env
 
 cp config/augure.example.json5 config/augure.json5
 # Edit config with your preferences (no secrets here!)
-```
 
-### 2. Launch
-
-```bash
 docker compose up -d
 ```
 
-### 3. Talk to your bot on Telegram
+### Talk to your bot on Telegram
 
 No ports to open, no firewall to configure. The agent uses outbound polling only.
 
