@@ -85,7 +85,20 @@ export class SkillUpdater {
 
     const toVersion = newSkill.meta.version;
 
-    // 3. Test the new version
+    // 3. Enforce sandbox (defense-in-depth — hub.download already sets this)
+    if (!newSkill.meta.sandbox) {
+      await this.config.manager.save(backup);
+      return {
+        skillId,
+        success: false,
+        rolledBack: true,
+        fromVersion,
+        toVersion,
+        error: "Downloaded skill has sandbox disabled — rejected for security",
+      };
+    }
+
+    // 4. Test the new version
     const testResult = await this.config.tester.test(newSkill);
 
     if (testResult.success) {

@@ -122,6 +122,21 @@ describe("SkillUpdater", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should reject downloaded skill with sandbox disabled", async () => {
+      const oldSkill = makeSkill("skill-a", 1);
+      const newSkill = makeSkill("skill-a", 2);
+      newSkill.meta.sandbox = false;
+      manager.get.mockResolvedValue(oldSkill);
+      hub.download.mockResolvedValue(newSkill);
+
+      const result = await updater.applyUpdate("skill-a");
+
+      expect(result.success).toBe(false);
+      expect(result.rolledBack).toBe(true);
+      expect(result.error).toContain("sandbox disabled");
+      expect(tester.test).not.toHaveBeenCalled();
+    });
+
     it("should rollback to backup when tests fail", async () => {
       const oldSkill = makeSkill("skill-a", 1);
       const newSkill = makeSkill("skill-a", 2);

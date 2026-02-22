@@ -1,7 +1,6 @@
 export interface VersionCheckerConfig {
   currentVersion: string;
   packageName: string;
-  githubRepo: string;
 }
 
 export interface UpdateCheckResult {
@@ -47,10 +46,11 @@ export class VersionChecker {
     }
   }
 
-  /** Compare two semver strings. Returns -1 if a < b, 0 if equal, 1 if a > b */
+  /** Compare two semver strings (MAJOR.MINOR.PATCH only, pre-release suffixes stripped). Returns -1 if a < b, 0 if equal, 1 if a > b */
   static compareVersions(a: string, b: string): number {
-    const pa = a.split(".").map(Number);
-    const pb = b.split(".").map(Number);
+    const clean = (v: string) => v.replace(/^v/, "").split("-")[0];
+    const pa = clean(a).split(".").map(Number);
+    const pb = clean(b).split(".").map(Number);
     for (let i = 0; i < 3; i++) {
       const va = pa[i] ?? 0;
       const vb = pb[i] ?? 0;

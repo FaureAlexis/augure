@@ -17,7 +17,7 @@ import {
   opencodeTool,
 } from "@augure/tools";
 import Dockerode from "dockerode";
-import { DockerContainerPool } from "@augure/sandbox";
+import { DockerContainerPool, ensureImage } from "@augure/sandbox";
 import {
   FileMemoryStore,
   MemoryIngester,
@@ -37,10 +37,13 @@ import {
   SkillHealer,
   SkillSchedulerBridge,
   SkillHub,
+  SkillUpdater,
   createSkillTools,
   installBuiltins,
 } from "@augure/skills";
 import { resolve } from "node:path";
+import { createRequire } from "node:module";
+import { VersionChecker } from "./version-checker.js";
 
 const SYSTEM_PROMPT = `You are Augure, a personal AI assistant. You are proactive, helpful, and concise.
 You speak the same language as the user. You have access to tools and persistent memory.
@@ -64,7 +67,7 @@ export async function startAgent(configPath: string): Promise<void> {
   const config = await loadConfig(configPath);
   console.log(`[augure] Loaded config: ${config.identity.name}`);
 
-  let telegramChannel: { stop(): Promise<void> } | undefined;
+  let telegram: TelegramChannel | undefined;
 
   const llm = resolveLLMClient(config.llm, "default");
   const ingestionLLM = resolveLLMClient(config.llm, "ingestion");
@@ -106,16 +109,19 @@ export async function startAgent(configPath: string): Promise<void> {
     }
   }
 
-  // Create container pool
+  // Create container pool (auto-build image if missing)
   const docker = new Dockerode();
+  const sandboxImage = config.sandbox.image ?? "augure-sandbox:latest";
+  await ensureImage(docker, sandboxImage);
   const pool = new DockerContainerPool(docker, {
-    image: config.sandbox.image ?? "augure-sandbox:latest",
+    image: sandboxImage,
     maxTotal: config.security.maxConcurrentSandboxes,
   });
   console.log(`[augure] Container pool created (max: ${config.security.maxConcurrentSandboxes})`);
 
   // Skills setup (optional — only if config.skills is present)
   let skillManagerRef: { updateStatus(id: string, status: string): Promise<void> } | undefined;
+  let skillUpdater: SkillUpdater | undefined;
   if (config.skills) {
     const skillsPath = resolve(configPath, "..", config.skills.path);
     const codingLLM = resolveLLMClient(config.llm, "coding");
@@ -161,6 +167,29 @@ export async function startAgent(configPath: string): Promise<void> {
     const skillBridge = new SkillSchedulerBridge(scheduler, skillManager);
     await skillBridge.syncAll();
 
+    // Skill auto-update
+    if (hub && config.updates?.skills?.enabled !== false) {
+      skillUpdater = new SkillUpdater({
+        manager: skillManager,
+        hub,
+        tester: skillTester,
+      });
+
+      try {
+        const updateResults = await skillUpdater.checkAndApply();
+        const updated = updateResults.filter((r) => r.success);
+        const failed = updateResults.filter((r) => !r.success);
+        if (updated.length > 0) {
+          console.log(`[augure] Skills updated: ${updated.map((r) => `${r.skillId} (v${r.fromVersion}→v${r.toVersion})`).join(", ")}`);
+        }
+        if (failed.length > 0) {
+          console.log(`[augure] Skill updates failed: ${failed.map((r) => `${r.skillId}: ${r.error}`).join(", ")}`);
+        }
+      } catch (err) {
+        console.error("[augure] Skill update check failed:", err);
+      }
+    }
+
     skillManagerRef = skillManager;
     console.log(`[augure] Skills system initialized at ${skillsPath}`);
   }
@@ -184,6 +213,30 @@ export async function startAgent(configPath: string): Promise<void> {
     console.log(`[augure] Personas loaded from ${personaPath}`);
   }
 
+  // Resolve CLI version (used for startup check + periodic notification)
+  let cliVersion: string | undefined;
+  try {
+    const require = createRequire(import.meta.url);
+    const pkg = require("augure/package.json") as { version: string };
+    cliVersion = pkg.version;
+  } catch {
+    // augure package not resolvable (e.g. standalone @augure/core install)
+  }
+
+  // CLI version check at startup
+  if (cliVersion && config.updates?.cli?.enabled !== false) {
+    const versionChecker = new VersionChecker({
+      currentVersion: cliVersion,
+      packageName: "augure",
+    });
+    const versionResult = await versionChecker.check();
+    if (versionResult.updateAvailable) {
+      console.log(
+        `[augure] Update available: v${versionResult.latestVersion} (current: v${versionResult.currentVersion}). Run: npm update -g augure`,
+      );
+    }
+  }
+
   // Context guard — maxContextTokens is the model's context window,
   // reservedForOutput is the max output tokens from config
   const guard = new ContextGuard({
@@ -204,11 +257,12 @@ export async function startAgent(configPath: string): Promise<void> {
   });
 
   if (config.channels.telegram?.enabled) {
-    const telegram = new TelegramChannel({
+    telegram = new TelegramChannel({
       botToken: config.channels.telegram.botToken,
       allowedUsers: config.channels.telegram.allowedUsers,
       rejectMessage: config.channels.telegram.rejectMessage,
     });
+    const tg = telegram;
 
     // Command context for kill switch
     const commandCtx = {
@@ -218,13 +272,13 @@ export async function startAgent(configPath: string): Promise<void> {
       skillManager: skillManagerRef,
     };
 
-    telegram.onMessage(async (msg) => {
+    tg.onMessage(async (msg) => {
       console.log(`[augure] Message from ${msg.userId}: ${msg.text}`);
       try {
         // Intercept commands before agent processing
         const cmdResult = await handleCommand(msg.text, commandCtx);
         if (cmdResult.handled) {
-          await telegram.send({
+          await tg.send({
             channelType: "telegram",
             userId: msg.userId,
             text: cmdResult.response ?? "OK",
@@ -239,7 +293,7 @@ export async function startAgent(configPath: string): Promise<void> {
         }
 
         const response = await agent.handleMessage(msg);
-        await telegram.send({
+        await tg.send({
           channelType: "telegram",
           userId: msg.userId,
           text: response,
@@ -247,7 +301,7 @@ export async function startAgent(configPath: string): Promise<void> {
         });
       } catch (err) {
         console.error("[augure] Error handling message:", err);
-        await telegram.send({
+        await tg.send({
           channelType: "telegram",
           userId: msg.userId,
           text: "An error occurred while processing your message.",
@@ -255,8 +309,7 @@ export async function startAgent(configPath: string): Promise<void> {
       }
     });
 
-    await telegram.start();
-    telegramChannel = telegram;
+    await tg.start();
     console.log("[augure] Telegram bot started. Waiting for messages...");
   }
 
@@ -281,17 +334,91 @@ export async function startAgent(configPath: string): Promise<void> {
     },
   });
 
+  scheduler.onJobTrigger(async (job) => {
+    console.log(`[augure] Job triggered: ${job.id}`);
+    const response = await agent.handleMessage({
+      id: `job-${job.id}-${Date.now()}`,
+      channelType: "system",
+      userId: "system",
+      text: job.prompt,
+      timestamp: new Date(),
+    });
+    // Send response to Telegram if configured
+    if (telegram && config.channels.telegram?.enabled) {
+      const userId = config.channels.telegram.allowedUsers[0];
+      if (userId !== undefined) {
+        await telegram.send({
+          channelType: "telegram",
+          userId: String(userId),
+          text: response,
+        });
+      }
+    }
+    console.log(`[augure] Job ${job.id} completed`);
+  });
+
   scheduler.start();
   heartbeat.start();
   console.log(
     `[augure] Scheduler started with ${scheduler.listJobs().length} jobs. Heartbeat every ${config.scheduler.heartbeatInterval}.`,
   );
 
+  // Periodic update timers (stored for cleanup on shutdown)
+  const updateTimers: ReturnType<typeof setInterval>[] = [];
+
+  // Periodic skill update checks
+  if (skillUpdater && config.updates?.skills?.checkInterval) {
+    const su = skillUpdater;
+    const skillCheckMs = parseInterval(config.updates.skills.checkInterval);
+    updateTimers.push(setInterval(async () => {
+      try {
+        const results = await su.checkAndApply();
+        for (const r of results) {
+          if (r.success) {
+            console.log(`[augure] Skill auto-updated: ${r.skillId} v${r.fromVersion}→v${r.toVersion}`);
+          } else if (r.rolledBack) {
+            console.log(`[augure] Skill update rolled back: ${r.skillId} - ${r.error}`);
+          }
+        }
+      } catch (err) {
+        console.error("[augure] Periodic skill update check failed:", err);
+      }
+    }, skillCheckMs));
+  }
+
+  // Periodic CLI version check with Telegram notification
+  if (cliVersion && config.updates?.cli?.enabled !== false && config.channels.telegram?.enabled) {
+    const cliCheckMs = parseInterval(config.updates?.cli?.checkInterval ?? "24h");
+    const versionChecker = new VersionChecker({
+      currentVersion: cliVersion,
+      packageName: "augure",
+    });
+
+    updateTimers.push(setInterval(async () => {
+      try {
+        const result = await versionChecker.check();
+        if (result.updateAvailable && telegram) {
+          const userId = config.channels.telegram?.allowedUsers[0];
+          if (userId !== undefined) {
+            await telegram.send({
+              channelType: "telegram",
+              userId: String(userId),
+              text: `Update available: Augure v${result.latestVersion} (current: v${result.currentVersion}).\nRun: \`npm update -g augure\``,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[augure] CLI version check failed:", err);
+      }
+    }, cliCheckMs));
+  }
+
   const shutdown = async () => {
     console.log("\n[augure] Shutting down...");
+    for (const timer of updateTimers) clearInterval(timer);
     heartbeat.stop();
     scheduler.stop();
-    if (telegramChannel) await telegramChannel.stop();
+    if (telegram) await telegram.stop();
     await pool.destroyAll();
     await audit.close();
     console.log("[augure] All containers destroyed");

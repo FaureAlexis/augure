@@ -23,8 +23,7 @@ describe("VersionChecker", () => {
       const checker = new VersionChecker({
         currentVersion: "0.3.0",
         packageName: "augure",
-        githubRepo: "FaureAlexis/augure",
-      });
+              });
 
       const result = await checker.check();
 
@@ -42,8 +41,7 @@ describe("VersionChecker", () => {
       const checker = new VersionChecker({
         currentVersion: "0.3.0",
         packageName: "augure",
-        githubRepo: "FaureAlexis/augure",
-      });
+              });
 
       const result = await checker.check();
       expect(result.updateAvailable).toBe(false);
@@ -70,9 +68,34 @@ describe("VersionChecker", () => {
     it("should detect older version", () => {
       expect(VersionChecker.compareVersions("2.0.0", "1.0.0")).toBe(1);
     });
+
+    it("should handle pre-release suffixes by stripping them", () => {
+      expect(VersionChecker.compareVersions("1.0.0-beta.1", "1.0.0")).toBe(0);
+      expect(VersionChecker.compareVersions("1.0.0", "1.0.1-rc.2")).toBe(-1);
+    });
+
+    it("should handle v-prefix", () => {
+      expect(VersionChecker.compareVersions("v1.0.0", "1.0.1")).toBe(-1);
+    });
   });
 
   describe("error handling", () => {
+    it("should handle non-200 npm response gracefully", async () => {
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 404,
+      });
+
+      const checker = new VersionChecker({
+        currentVersion: "0.3.0",
+        packageName: "augure",
+      });
+
+      const result = await checker.check();
+      expect(result.updateAvailable).toBe(false);
+      expect(result.error).toBe("npm registry returned 404");
+    });
+
     it("should handle fetch failure gracefully", async () => {
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error("Network error"),
@@ -81,8 +104,7 @@ describe("VersionChecker", () => {
       const checker = new VersionChecker({
         currentVersion: "0.3.0",
         packageName: "augure",
-        githubRepo: "FaureAlexis/augure",
-      });
+              });
 
       const result = await checker.check();
       expect(result.updateAvailable).toBe(false);
