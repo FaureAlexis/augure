@@ -1,0 +1,191 @@
+---
+title: Sandbox
+description: Docker-based code execution with trust levels, resource limits, and automatic image provisioning
+---
+
+## Overview
+
+Augure executes all code in Docker containers managed by `@augure/sandbox`. The sandbox provides isolated, resource-limited environments that prevent untrusted code from affecting the host system.
+
+The sandbox is used by two tools:
+- **`sandbox_exec`** — runs arbitrary commands in a container
+- **`opencode`** — runs a coding agent (claude-code, opencode, codex) in a container
+
+And by the skills system, which generates, tests, and runs skills in sandboxed containers.
+
+## Automatic Image Provisioning
+
+The sandbox Docker image is built automatically at startup if it doesn't exist locally. No manual `docker build` step is required.
+
+The embedded Dockerfile installs:
+
+```dockerfile
+FROM node:22-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 curl jq git \
+  && rm -rf /var/lib/apt/lists/*
+WORKDIR /workspace
+```
+
+On first launch, you'll see:
+
+```
+[augure] Image "augure-sandbox:latest" not found, building...
+[augure] Image "augure-sandbox:latest" built successfully
+```
+
+Subsequent starts skip the build since the image already exists.
+
+To use a custom image, set `sandbox.image` in your config:
+
+```json5
+{
+  sandbox: {
+    image: "my-custom-sandbox:v2",
+    // ...
+  },
+}
+```
+
+## Trust Levels
+
+Every container runs at one of two trust levels:
+
+| Level | Network | Use case |
+|-------|---------|----------|
+| `sandboxed` | **Disabled** | User-submitted code, skills, untrusted scripts |
+| `trusted` | Host network | Coding agents that need API access (opencode, claude-code) |
+
+The pool never reuses containers across trust levels. A sandboxed container can never be promoted to trusted.
+
+## Container Pool
+
+`DockerContainerPool` manages container lifecycle:
+
+```
+acquire(opts) → Container → exec(command) → release(container)
+                                          → destroy(container)
+```
+
+### Lifecycle
+
+1. **acquire** — checks the idle cache for a container at the requested trust level. If none available, creates a new one (up to `maxConcurrentSandboxes`).
+2. **exec** — runs a shell command inside the container. Captures stdout/stderr (capped at 1 MB each). Supports timeout, working directory, and environment variables.
+3. **release** — returns the container to the idle cache for reuse.
+4. **destroy** — stops and removes the container permanently.
+
+### Resource Limits
+
+Each container is created with:
+
+| Resource | Default | Config field |
+|----------|---------|-------------|
+| Memory | 512 MB | `sandbox.defaults.memoryLimit` |
+| CPU | 1.0 core | `sandbox.defaults.cpuLimit` |
+| Timeout | 300s | `sandbox.defaults.timeout` |
+| PID limit | 512 | Hardcoded (fork-bomb protection) |
+| Output cap | 1 MB per stream | Hardcoded |
+
+## Configuration
+
+```json5
+{
+  sandbox: {
+    runtime: "docker",
+    image: "augure-sandbox:latest",  // optional, auto-built if missing
+    defaults: {
+      timeout: 300,
+      memoryLimit: "512m",
+      cpuLimit: "1.0",
+    },
+  },
+
+  security: {
+    sandboxOnly: true,               // require all code in containers
+    maxConcurrentSandboxes: 3,       // max concurrent containers
+    allowedHosts: [],                // restrict outbound network (empty = all)
+  },
+}
+```
+
+### sandboxOnly
+
+When `security.sandboxOnly` is `true` (the default), all code execution is forced through Docker containers. This is the recommended setting for production.
+
+## Interfaces
+
+The sandbox package exports three main items:
+
+### Container
+
+```typescript
+interface Container {
+  id: string;
+  status: "idle" | "busy" | "stopped";
+  exec(command: string, opts?: ExecOpts): Promise<ExecResult>;
+  stop(): Promise<void>;
+}
+
+interface ExecOpts {
+  timeout?: number;  // seconds
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
+interface ExecResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+```
+
+### ContainerPool
+
+```typescript
+interface ContainerPool {
+  acquire(opts: ContainerOpts): Promise<Container>;
+  release(container: Container): Promise<void>;
+  destroy(container: Container): Promise<void>;
+  destroyAll(): Promise<void>;
+  stats(): PoolStats;
+}
+
+interface ContainerOpts {
+  trust: "sandboxed" | "trusted";
+  timeout: number;
+  memory: string;   // e.g. "512m", "1g"
+  cpu: string;      // e.g. "1.0", "0.5"
+  env?: Record<string, string>;
+  mounts?: VolumeMount[];
+}
+```
+
+### ensureImage
+
+```typescript
+function ensureImage(docker: Dockerode, imageName: string): Promise<void>;
+```
+
+Checks if the image exists locally. If not, builds it from the embedded Dockerfile. Called automatically at agent startup.
+
+## Volumes and Mounts
+
+Containers can be created with bind mounts for specific use cases:
+
+```typescript
+const container = await pool.acquire({
+  trust: "trusted",
+  timeout: 300,
+  memory: "1g",
+  cpu: "1.0",
+  mounts: [
+    { host: "/path/to/repo", container: "/workspace", readonly: false },
+  ],
+});
+```
+
+By default, sandboxed containers have no mounts — they only see their empty `/workspace` directory.
+
+## Shutdown
+
+On agent shutdown, `pool.destroyAll()` is called to stop and remove all containers (both idle and busy). `Promise.allSettled` is used so one container failure doesn't orphan the rest.

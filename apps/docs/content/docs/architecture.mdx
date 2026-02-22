@@ -28,7 +28,7 @@ The codebase is a pnpm monorepo with Turborepo for task orchestration:
 | `@augure/scheduler` | `packages/scheduler` | CronScheduler, JobStore, Heartbeat, parseInterval |
 | `@augure/tools` | `packages/tools` | ToolRegistry + native tools (memory, schedule, web_search, http, sandbox_exec, opencode) |
 | `@augure/channels` | `packages/channels` | Channel interface + Telegram implementation |
-| `@augure/sandbox` | `packages/sandbox` | Docker container pool with on-demand creation, idle caching, and trust-level isolation |
+| `@augure/sandbox` | `packages/sandbox` | Docker container pool with on-demand creation, idle caching, trust-level isolation, and automatic image provisioning |
 | `@augure/skills` | `packages/skills` | Self-generated skill system: LLM generation, sandbox execution, auto-testing, self-healing, scheduler bridge, curated hub |
 
 ## Execution Flow
