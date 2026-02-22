@@ -50,8 +50,17 @@ export class DockerContainer implements Container {
   }
 
   async stop(): Promise<void> {
-    await this.raw.stop({ t: 5 });
-    await this.raw.remove({ force: true });
+    if (this._status === "stopped") return;
+    try {
+      await this.raw.stop({ t: 5 });
+    } catch {
+      // Container may already be stopped
+    }
+    try {
+      await this.raw.remove({ force: true });
+    } catch {
+      // Container may already be removed
+    }
     this._status = "stopped";
   }
 
@@ -105,22 +114,28 @@ export class DockerContainer implements Container {
 
       let timer: ReturnType<typeof setTimeout> | undefined;
       let settled = false;
+      let stdoutEnded = false;
+      let stderrEnded = false;
 
       const cleanup = () => {
         if (timer) clearTimeout(timer);
       };
 
+      // C1: timeout is in seconds, convert to ms for setTimeout
       if (opts?.timeout && opts.timeout > 0) {
+        const timeoutMs = opts.timeout * 1000;
         timer = setTimeout(() => {
           if (!settled) {
             settled = true;
             stream.destroy();
-            reject(new Error(`Exec timed out after ${opts.timeout}ms`));
+            reject(new Error(`Exec timed out after ${opts.timeout}s`));
           }
-        }, opts.timeout);
+        }, timeoutMs);
       }
 
-      stdoutPT.on("end", async () => {
+      // I8: wait for both stdout and stderr to end before resolving
+      const tryResolve = async () => {
+        if (!stdoutEnded || !stderrEnded) return;
         if (settled) return;
         settled = true;
         cleanup();
@@ -133,6 +148,25 @@ export class DockerContainer implements Container {
             stderr: Buffer.concat(stderrBufs).toString("utf-8"),
           });
         } catch (err) {
+          reject(err);
+        }
+      };
+
+      stdoutPT.on("end", () => {
+        stdoutEnded = true;
+        tryResolve();
+      });
+
+      stderrPT.on("end", () => {
+        stderrEnded = true;
+        tryResolve();
+      });
+
+      // C4: handle stream errors
+      stream.on("error", (err: Error) => {
+        if (!settled) {
+          settled = true;
+          cleanup();
           reject(err);
         }
       });

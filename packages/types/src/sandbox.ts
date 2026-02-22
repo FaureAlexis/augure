@@ -14,6 +14,7 @@ export interface VolumeMount {
 }
 
 export interface ExecOpts {
+  /** Timeout in seconds. Converted to ms internally. */
   timeout?: number;
   cwd?: string;
   env?: Record<string, string>;

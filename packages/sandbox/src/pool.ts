@@ -48,8 +48,13 @@ export class DockerContainerPool implements ContainerPool {
   private readonly image: string;
   private readonly maxTotal: number;
 
-  private readonly idle = new Set<Container>();
+  // C3: idle cache keyed by trust level to prevent cross-trust reuse
+  private readonly idle = new Map<string, Set<Container>>([
+    ["sandboxed", new Set()],
+    ["trusted", new Set()],
+  ]);
   private readonly busy = new Set<Container>();
+  private readonly containerTrust = new Map<string, "sandboxed" | "trusted">();
 
   constructor(
     docker: Dockerode,
@@ -60,20 +65,27 @@ export class DockerContainerPool implements ContainerPool {
     this.maxTotal = config.maxTotal;
   }
 
+  private get idleCount(): number {
+    let count = 0;
+    for (const set of this.idle.values()) count += set.size;
+    return count;
+  }
+
   /* ---- acquire ---- */
 
   async acquire(opts: ContainerOpts): Promise<Container> {
-    // 1. Check idle cache first
-    const cached = this.idle.values().next();
+    // 1. Check idle cache for matching trust level
+    const trustIdle = this.idle.get(opts.trust)!;
+    const cached = trustIdle.values().next();
     if (!cached.done) {
       const container = cached.value;
-      this.idle.delete(container);
+      trustIdle.delete(container);
       this.busy.add(container);
       return container;
     }
 
     // 2. If we still have capacity, create a new container
-    const total = this.idle.size + this.busy.size;
+    const total = this.idleCount + this.busy.size;
     if (total >= this.maxTotal) {
       throw new Error("Pool limit reached");
     }
@@ -88,6 +100,7 @@ export class DockerContainerPool implements ContainerPool {
     const demux = modem.demuxStream.bind(modem);
 
     const container = new DockerContainer(raw, demux);
+    this.containerTrust.set(container.id, opts.trust);
     this.busy.add(container);
     return container;
   }
@@ -98,38 +111,46 @@ export class DockerContainerPool implements ContainerPool {
     this.busy.delete(container);
 
     if (container.status === "stopped") {
-      // Tainted -- don't cache
+      this.containerTrust.delete(container.id);
       return;
     }
 
-    this.idle.add(container);
+    const trust = this.containerTrust.get(container.id) ?? "sandboxed";
+    this.idle.get(trust)!.add(container);
   }
 
   /* ---- destroy ---- */
 
   async destroy(container: Container): Promise<void> {
     this.busy.delete(container);
-    this.idle.delete(container);
+    for (const set of this.idle.values()) set.delete(container);
+    this.containerTrust.delete(container.id);
     await container.stop();
   }
 
   /* ---- destroyAll ---- */
 
   async destroyAll(): Promise<void> {
-    const all = [...this.busy, ...this.idle];
+    const all = [...this.busy];
+    for (const set of this.idle.values()) {
+      all.push(...set);
+      set.clear();
+    }
     this.busy.clear();
-    this.idle.clear();
+    this.containerTrust.clear();
 
-    await Promise.all(all.map((c) => c.stop()));
+    // I2: allSettled so one failure doesn't orphan the rest
+    await Promise.allSettled(all.map((c) => c.stop()));
   }
 
   /* ---- stats ---- */
 
   stats(): PoolStats {
+    const idle = this.idleCount;
     return {
-      idle: this.idle.size,
+      idle,
       busy: this.busy.size,
-      total: this.idle.size + this.busy.size,
+      total: idle + this.busy.size,
       maxTotal: this.maxTotal,
     };
   }
@@ -142,18 +163,35 @@ export class DockerContainerPool implements ContainerPool {
     const hostConfig: Dockerode.HostConfig = {
       Memory: parseMemory(opts.memory),
       NanoCpus: parseCpu(opts.cpu),
+      PidsLimit: 512, // I6: prevent fork bombs
     };
 
     if (!isSandboxed) {
       hostConfig.NetworkMode = "host";
     }
 
-    return {
+    // C2: pass mounts through to Docker
+    if (opts.mounts?.length) {
+      hostConfig.Binds = opts.mounts.map(
+        (m) => `${m.host}:${m.container}${m.readonly ? ":ro" : ""}`,
+      );
+    }
+
+    const createOpts: Dockerode.ContainerCreateOptions = {
       Image: this.image,
       Cmd: ["sleep", "infinity"],
       WorkingDir: "/workspace",
       NetworkDisabled: isSandboxed,
       HostConfig: hostConfig,
     };
+
+    // C2: pass env through to Docker
+    if (opts.env) {
+      createOpts.Env = Object.entries(opts.env).map(
+        ([k, v]) => `${k}=${v}`,
+      );
+    }
+
+    return createOpts;
   }
 }

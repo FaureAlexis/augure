@@ -54,7 +54,7 @@ function firstCreateArg(
 
 const baseOpts = {
   trust: "sandboxed" as const,
-  timeout: 30_000,
+  timeout: 30,
   memory: "512m",
   cpu: "1.0",
 };
@@ -266,5 +266,109 @@ describe("DockerContainerPool", () => {
     expect(createArg.Image).toBe("augure-sandbox:latest");
     expect(createArg.Cmd).toEqual(["sleep", "infinity"]);
     expect(createArg.WorkingDir).toBe("/workspace");
+  });
+
+  /* ---- C3: trust-keyed idle cache ---- */
+  it("should NOT reuse sandboxed container for trusted request", async () => {
+    const pool = new DockerContainerPool(docker, {
+      image: "augure-sandbox:latest",
+      maxTotal: 5,
+    });
+
+    const sandboxed = await pool.acquire({ ...baseOpts, trust: "sandboxed" });
+    await pool.release(sandboxed);
+
+    const trusted = await pool.acquire({ ...baseOpts, trust: "trusted" });
+    // Should be a different container — not reused from sandboxed cache
+    expect(trusted.id).not.toBe(sandboxed.id);
+    expect(createContainer).toHaveBeenCalledTimes(2);
+  });
+
+  it("should reuse container with matching trust level", async () => {
+    const pool = new DockerContainerPool(docker, {
+      image: "augure-sandbox:latest",
+      maxTotal: 5,
+    });
+
+    const c1 = await pool.acquire({ ...baseOpts, trust: "trusted" });
+    await pool.release(c1);
+
+    const c2 = await pool.acquire({ ...baseOpts, trust: "trusted" });
+    expect(c2.id).toBe(c1.id);
+    expect(createContainer).toHaveBeenCalledTimes(1);
+  });
+
+  /* ---- C2: env and mounts in buildCreateOpts ---- */
+  it("should pass env to container create options", async () => {
+    const pool = new DockerContainerPool(docker, {
+      image: "augure-sandbox:latest",
+      maxTotal: 5,
+    });
+
+    await pool.acquire({
+      ...baseOpts,
+      env: { API_KEY: "secret", NODE_ENV: "production" },
+    });
+
+    const createArg = firstCreateArg(createContainer);
+    expect(createArg.Env).toEqual(["API_KEY=secret", "NODE_ENV=production"]);
+  });
+
+  it("should pass mounts as Binds in HostConfig", async () => {
+    const pool = new DockerContainerPool(docker, {
+      image: "augure-sandbox:latest",
+      maxTotal: 5,
+    });
+
+    await pool.acquire({
+      ...baseOpts,
+      mounts: [
+        { host: "/tmp/code", container: "/workspace", readonly: false },
+        { host: "/data/models", container: "/models", readonly: true },
+      ],
+    });
+
+    const createArg = firstCreateArg(createContainer);
+    const hostConfig = createArg.HostConfig as Record<string, unknown>;
+    expect(hostConfig.Binds).toEqual([
+      "/tmp/code:/workspace",
+      "/data/models:/models:ro",
+    ]);
+  });
+
+  /* ---- I6: PidsLimit ---- */
+  it("should set PidsLimit in HostConfig", async () => {
+    const pool = new DockerContainerPool(docker, {
+      image: "augure-sandbox:latest",
+      maxTotal: 5,
+    });
+
+    await pool.acquire(baseOpts);
+
+    const createArg = firstCreateArg(createContainer);
+    const hostConfig = createArg.HostConfig as Record<string, unknown>;
+    expect(hostConfig.PidsLimit).toBe(512);
+  });
+
+  /* ---- I2: destroyAll uses allSettled ---- */
+  it("should destroy all containers even if one stop fails", async () => {
+    const pool = new DockerContainerPool(docker, {
+      image: "augure-sandbox:latest",
+      maxTotal: 5,
+    });
+
+    await pool.acquire(baseOpts);
+    await pool.acquire(baseOpts);
+
+    // Make first container's stop throw
+    containers[0].stop.mockRejectedValueOnce(new Error("stop failed"));
+
+    // destroyAll should not throw
+    await pool.destroyAll();
+
+    // Both containers should have had stop attempted
+    expect(containers[0].stop).toHaveBeenCalled();
+    expect(containers[1].stop).toHaveBeenCalled();
+    expect(pool.stats().total).toBe(0);
   });
 });

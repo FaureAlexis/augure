@@ -147,7 +147,8 @@ describe("DockerContainer", () => {
     });
 
     const container = new DockerContainer(raw as unknown as Dockerode.Container, demux);
-    await expect(container.exec("sleep 999", { timeout: 50 })).rejects.toThrow(
+    // C1: timeout is in seconds, 0.05s = 50ms
+    await expect(container.exec("sleep 999", { timeout: 0.05 })).rejects.toThrow(
       /timed out/i,
     );
 
@@ -164,6 +165,56 @@ describe("DockerContainer", () => {
     expect(raw.stop).toHaveBeenCalledWith({ t: 5 });
     expect(raw.remove).toHaveBeenCalledWith({ force: true });
     expect(container.status).toBe("stopped");
+  });
+
+  it("should not throw when stop is called twice", async () => {
+    const { raw, demux } = makeFakeRaw({});
+    const container = new DockerContainer(raw as unknown as Dockerode.Container, demux);
+
+    await container.stop();
+    expect(container.status).toBe("stopped");
+
+    // Second stop should be a no-op
+    await container.stop();
+    expect(container.status).toBe("stopped");
+    // stop/remove should only have been called once
+    expect(raw.stop).toHaveBeenCalledTimes(1);
+    expect(raw.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("should handle stop when dockerode throws (already stopped)", async () => {
+    const { raw, demux } = makeFakeRaw({});
+    raw.stop.mockRejectedValueOnce(new Error("container already stopped"));
+    raw.remove.mockRejectedValueOnce(new Error("no such container"));
+
+    const container = new DockerContainer(raw as unknown as Dockerode.Container, demux);
+    // Should not throw
+    await container.stop();
+    expect(container.status).toBe("stopped");
+  });
+
+  it("should reject on stream error", async () => {
+    const { raw, demux } = makeFakeRaw({
+      onDemux: () => {
+        // Never end streams
+      },
+    });
+
+    // Override to emit an error on the stream
+    const fakeStream = new PassThrough();
+    const execObj = {
+      start: vi.fn().mockResolvedValue(fakeStream),
+      inspect: vi.fn().mockResolvedValue({ ExitCode: 0 }),
+    };
+    raw.exec.mockResolvedValue(execObj);
+
+    const container = new DockerContainer(raw as unknown as Dockerode.Container, demux);
+    const execPromise = container.exec("bad");
+
+    // Emit error after a tick
+    setTimeout(() => fakeStream.destroy(new Error("stream broke")), 10);
+
+    await expect(execPromise).rejects.toThrow("stream broke");
   });
 
   it("should truncate output at 1 MB", async () => {
