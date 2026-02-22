@@ -12,7 +12,6 @@ describe("assembleContext", () => {
     const messages = assembleContext({
       systemPrompt: "You are Augure.",
       memoryContent: "User prefers French.",
-      toolSchemas: [],
       conversationHistory: history,
     });
 
@@ -22,31 +21,10 @@ describe("assembleContext", () => {
     expect(messages).toHaveLength(3);
   });
 
-  it("should include tool descriptions in system prompt", () => {
-    const messages = assembleContext({
-      systemPrompt: "You are Augure.",
-      memoryContent: "",
-      toolSchemas: [
-        {
-          type: "function" as const,
-          function: {
-            name: "web_search",
-            description: "Search the web",
-            parameters: {},
-          },
-        },
-      ],
-      conversationHistory: [],
-    });
-
-    expect(messages[0].content).toContain("web_search");
-  });
-
   it("should include persona overlay", () => {
     const messages = assembleContext({
       systemPrompt: "You are Augure.",
       memoryContent: "",
-      toolSchemas: [],
       conversationHistory: [],
       persona: "You are a senior engineer.",
     });
@@ -59,7 +37,6 @@ describe("assembleContext", () => {
     const messages = assembleContext({
       systemPrompt: "You are Augure.",
       memoryContent: "",
-      toolSchemas: [],
       conversationHistory: [],
     });
 

@@ -89,6 +89,78 @@ describe("OpenRouterClient", () => {
     });
   });
 
+  it("should send tools parameter in request body", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    server.use(
+      http.post(`${BASE_URL}/chat/completions`, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          choices: [{ message: { content: "OK", tool_calls: [] } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        });
+      }),
+    );
+
+    const client = createClient();
+    const tools = [
+      {
+        type: "function" as const,
+        function: {
+          name: "get_weather",
+          description: "Get weather for a location",
+          parameters: {
+            type: "object",
+            properties: { location: { type: "string" } },
+            required: ["location"],
+          },
+        },
+      },
+    ];
+
+    await client.chat([{ role: "user", content: "Weather?" }], tools);
+
+    expect(capturedBody.tools).toEqual(tools);
+  });
+
+  it("should serialize tool_calls on assistant messages", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    server.use(
+      http.post(`${BASE_URL}/chat/completions`, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          choices: [{ message: { content: "Done", tool_calls: [] } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        });
+      }),
+    );
+
+    const client = createClient();
+    await client.chat([
+      { role: "user", content: "Use the tool" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          { id: "call_1", name: "my_tool", arguments: { key: "value" } },
+        ],
+      },
+      { role: "tool", content: "tool result", toolCallId: "call_1" },
+    ]);
+
+    const messages = capturedBody.messages as Record<string, unknown>[];
+    const assistantMsg = messages[1];
+    expect(assistantMsg.tool_calls).toEqual([
+      {
+        id: "call_1",
+        type: "function",
+        function: { name: "my_tool", arguments: '{"key":"value"}' },
+      },
+    ]);
+    expect(messages[2]).toEqual(
+      expect.objectContaining({ role: "tool", tool_call_id: "call_1" }),
+    );
+  });
+
   it("should throw on API error", async () => {
     server.use(
       http.post(`${BASE_URL}/chat/completions`, () => {

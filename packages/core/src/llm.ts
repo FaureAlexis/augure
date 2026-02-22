@@ -1,4 +1,4 @@
-import type { LLMClient, LLMResponse, Message } from "@augure/types";
+import type { LLMClient, LLMResponse, Message, FunctionSchema } from "@augure/types";
 
 export interface OpenRouterConfig {
   apiKey: string;
@@ -20,7 +20,7 @@ export class OpenRouterClient implements LLMClient {
     this.baseUrl = config.baseUrl ?? "https://openrouter.ai/api/v1";
   }
 
-  async chat(messages: Message[]): Promise<LLMResponse> {
+  async chat(messages: Message[], tools?: FunctionSchema[]): Promise<LLMResponse> {
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -34,7 +34,20 @@ export class OpenRouterClient implements LLMClient {
           role: m.role,
           content: m.content,
           ...(m.toolCallId ? { tool_call_id: m.toolCallId } : {}),
+          ...(m.toolCalls?.length
+            ? {
+                tool_calls: m.toolCalls.map((tc) => ({
+                  id: tc.id,
+                  type: "function",
+                  function: {
+                    name: tc.name,
+                    arguments: JSON.stringify(tc.arguments),
+                  },
+                })),
+              }
+            : {}),
         })),
+        ...(tools?.length ? { tools } : {}),
       }),
     });
 
