@@ -161,6 +161,41 @@ describe("OpenRouterClient", () => {
     );
   });
 
+  it("should handle malformed tool call arguments without crashing", async () => {
+    server.use(
+      http.post(`${BASE_URL}/chat/completions`, () => {
+        return HttpResponse.json({
+          choices: [
+            {
+              message: {
+                content: "",
+                tool_calls: [
+                  {
+                    id: "call_bad",
+                    function: {
+                      name: "broken_tool",
+                      arguments: "{invalid json",
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        });
+      }),
+    );
+
+    const client = createClient();
+    const result = await client.chat([
+      { role: "user", content: "test" },
+    ]);
+
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0].name).toBe("broken_tool");
+    expect(result.toolCalls[0].arguments).toEqual({});
+  });
+
   it("should throw on API error", async () => {
     server.use(
       http.post(`${BASE_URL}/chat/completions`, () => {

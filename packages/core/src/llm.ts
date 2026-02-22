@@ -63,14 +63,17 @@ export class OpenRouterClient implements LLMClient {
 
     return {
       content: choice.message.content ?? "",
-      toolCalls: (choice.message.tool_calls ?? []).map((tc) => ({
-        id: tc.id,
-        name: tc.function.name,
-        arguments: JSON.parse(tc.function.arguments) as Record<
-          string,
-          unknown
-        >,
-      })),
+      toolCalls: (choice.message.tool_calls ?? []).map((tc) => {
+        let args: Record<string, unknown> = {};
+        try {
+          args = tc.function.arguments
+            ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
+            : {};
+        } catch {
+          console.error(`[augure] Failed to parse tool call arguments for ${tc.function.name}:`, tc.function.arguments);
+        }
+        return { id: tc.id, name: tc.function.name, arguments: args };
+      }),
       usage: {
         inputTokens: data.usage.prompt_tokens,
         outputTokens: data.usage.completion_tokens,
