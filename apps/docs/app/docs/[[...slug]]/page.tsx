@@ -44,8 +44,16 @@ export async function generateMetadata(props: {
   const page = source.getPage(params.slug);
   if (!page) notFound();
 
+  const ogParams = new URLSearchParams({ title: page.data.title });
+  if (page.data.description) {
+    ogParams.set("description", page.data.description);
+  }
+
   return {
     title: page.data.title,
     description: page.data.description,
+    openGraph: {
+      images: [`/api/og?${ogParams.toString()}`],
+    },
   };
 }
