@@ -12,3 +12,4 @@ export { parseSkillMd, serializeSkillMd, validateSkillMeta } from "./parser.js";
 export { parseSkillResponse, type ParsedSkillResponse } from "./llm-parser.js";
 export { createSkillTools, type SkillToolsDeps } from "./tools.js";
 export { installBuiltins } from "./builtins/index.js";
+export { SkillUpdater, type SkillUpdaterConfig, type SkillUpdateInfo, type SkillUpdateResult } from "./updater.js";
