@@ -112,3 +112,15 @@ export interface AuditConfig {
 export interface PersonaConfig {
   path: string;
 }
+
+export interface UpdatesConfig {
+  skills?: {
+    enabled: boolean;
+    checkInterval: string;
+  };
+  cli?: {
+    enabled: boolean;
+    checkInterval: string;
+    notifyChannel: string;
+  };
+}

@@ -9,6 +9,7 @@ import type {
   SecurityConfig,
   AuditConfig,
   PersonaConfig,
+  UpdatesConfig,
 } from "./config.js";
 import type { SkillsConfig } from "./skills.js";
 import type { MemoryStore } from "./memory.js";
@@ -53,4 +54,5 @@ export interface AppConfig {
   skills?: SkillsConfig;
   audit?: AuditConfig;
   persona?: PersonaConfig;
+  updates?: UpdatesConfig;
 }
