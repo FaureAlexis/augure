@@ -105,9 +105,15 @@ importers:
       '@augure/memory':
         specifier: workspace:*
         version: link:../memory
+      '@augure/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
       '@augure/scheduler':
         specifier: workspace:*
         version: link:../scheduler
+      '@augure/skills':
+        specifier: workspace:*
+        version: link:../skills
       '@augure/tools':
         specifier: workspace:*
         version: link:../tools
@@ -117,6 +123,13 @@ importers:
       citty:
         specifier: ^0.2.1
         version: 0.2.1
+      dockerode:
+        specifier: ^4.0.7
+        version: 4.0.9
+    devDependencies:
+      '@types/dockerode':
+        specifier: ^4.0.1
+        version: 4.0.1
 
   packages/core:
     dependencies:

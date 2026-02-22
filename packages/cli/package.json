@@ -24,11 +24,17 @@
   "dependencies": {
     "@augure/core": "workspace:*",
     "@augure/channels": "workspace:*",
+    "@augure/sandbox": "workspace:*",
+    "@augure/skills": "workspace:*",
     "@augure/memory": "workspace:*",
     "@augure/scheduler": "workspace:*",
     "@augure/tools": "workspace:*",
     "@augure/types": "workspace:*",
-    "citty": "^0.2.1"
+    "citty": "^0.2.1",
+    "dockerode": "^4.0.7"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^4.0.1"
   },
   "keywords": ["ai", "agent", "assistant", "telegram", "llm"],
   "author": "Alexis",
