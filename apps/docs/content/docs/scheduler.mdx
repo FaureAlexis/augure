@@ -25,7 +25,8 @@ export interface Scheduler {
 ```typescript
 export interface Job {
   id: string;
-  cron: string;
+  cron?: string;    // Cron expression for recurring jobs
+  runAt?: string;   // ISO 8601 date for one-shot jobs
   prompt: string;
   channel: string;
   enabled: boolean;
@@ -34,16 +35,20 @@ export interface Job {
 }
 ```
 
+A job must have either `cron` (recurring) or `runAt` (one-shot), not both.
+
+One-shot jobs use `setTimeout` to fire at the specified date. After execution, they are automatically removed from the scheduler and from persistence. Expired one-shot jobs (date in the past) are discarded when loading from disk.
+
 ### Operations
 
 | Method | Behavior |
 |--------|----------|
-| `addJob(job)` | Validate cron expression, register the job, start the cron task if enabled |
-| `removeJob(id)` | Stop the cron task and remove the job |
+| `addJob(job)` | Validate cron/runAt, register the job, create the cron task or timer if enabled |
+| `removeJob(id)` | Stop the cron task or cancel the timer, and remove the job |
 | `listJobs()` | Return all registered jobs |
-| `triggerJob(id)` | Immediately execute a job's handlers (bypass cron schedule) |
-| `start()` | Start all cron tasks |
-| `stop()` | Stop all cron tasks |
+| `triggerJob(id)` | Immediately execute a job's handlers (bypass schedule) |
+| `start()` | Start all cron tasks and schedule all one-shot timers |
+| `stop()` | Stop all cron tasks and cancel all timers |
 
 ### Event Handlers
 
@@ -68,8 +73,14 @@ Jobs defined in `augure.json5` are loaded at startup:
     jobs: [
       {
         id: "morning-check",
-        cron: "0 8 * * *",          // Every day at 8am
+        cron: "0 8 * * *",          // Recurring: every day at 8am
         prompt: "Check for anything urgent today.",
+        channel: "telegram",
+      },
+      {
+        id: "remind-deadline",
+        runAt: "2026-03-15T09:00:00Z",  // One-shot: fires once then auto-removed
+        prompt: "Rappelle le deadline du projet.",
         channel: "telegram",
       },
     ],

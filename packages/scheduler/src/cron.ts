@@ -7,6 +7,7 @@ type JobTriggerHandler = (job: Job) => void | Promise<void>;
 export class CronScheduler implements Scheduler {
   private jobs = new Map<string, Job>();
   private tasks = new Map<string, ScheduledTask>();
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
   private handlers: JobTriggerHandler[] = [];
   private persistChain: Promise<void> = Promise.resolve();
 
@@ -17,13 +18,19 @@ export class CronScheduler implements Scheduler {
   }
 
   addJob(job: Job): void {
-    if (!validate(job.cron)) {
+    if (!job.cron && !job.runAt) {
+      throw new Error(`Job ${job.id} must have either cron or runAt`);
+    }
+    if (job.cron && !validate(job.cron)) {
       throw new Error(`Invalid cron expression: ${job.cron}`);
+    }
+    if (job.runAt && isNaN(Date.parse(job.runAt))) {
+      throw new Error(`Invalid runAt date: ${job.runAt}`);
     }
 
     this.jobs.set(job.id, job);
 
-    if (job.enabled) {
+    if (job.enabled && job.cron) {
       const task = createTask(job.cron, () => {
         void this.executeHandlers(job);
       });
@@ -38,6 +45,11 @@ export class CronScheduler implements Scheduler {
     if (task) {
       task.stop();
       this.tasks.delete(id);
+    }
+    const timer = this.timers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.timers.delete(id);
     }
     this.jobs.delete(id);
     this.persist();
@@ -59,6 +71,10 @@ export class CronScheduler implements Scheduler {
     if (!this.store) return;
     const jobs = await this.store.load();
     for (const job of jobs) {
+      // Skip one-shot jobs whose date has already passed
+      if (job.runAt && Date.parse(job.runAt) <= Date.now()) {
+        continue;
+      }
       this.addJob(job);
     }
   }
@@ -67,12 +83,36 @@ export class CronScheduler implements Scheduler {
     for (const task of this.tasks.values()) {
       task.start();
     }
+    // Schedule one-shot jobs
+    for (const job of this.jobs.values()) {
+      if (job.enabled && job.runAt && !job.cron) {
+        this.scheduleOneShot(job);
+      }
+    }
   }
 
   stop(): void {
     for (const task of this.tasks.values()) {
       task.stop();
     }
+    for (const timer of this.timers.values()) {
+      clearTimeout(timer);
+    }
+    this.timers.clear();
+  }
+
+  private scheduleOneShot(job: Job): void {
+    const delayMs = Date.parse(job.runAt!) - Date.now();
+    if (delayMs <= 0) return;
+
+    const timer = setTimeout(() => {
+      this.timers.delete(job.id);
+      void this.executeHandlers(job).then(() => {
+        this.removeJob(job.id);
+      });
+    }, delayMs);
+
+    this.timers.set(job.id, timer);
   }
 
   private persist(): void {

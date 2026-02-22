@@ -46,9 +46,12 @@ const AppConfigSchema = z.object({
     jobs: z.array(
       z.object({
         id: z.string().min(1),
-        cron: z.string().min(1),
+        cron: z.string().min(1).optional(),
+        runAt: z.string().min(1).optional(),
         prompt: z.string().min(1),
         channel: z.string().min(1),
+      }).refine((j) => j.cron || j.runAt, {
+        message: "Job must have either cron or runAt",
       }),
     ),
   }),

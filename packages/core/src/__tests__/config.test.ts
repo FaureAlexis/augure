@@ -144,6 +144,25 @@ describe("loadConfig", () => {
     expect(config.updates?.cli?.notifyChannel).toBe("telegram");
   });
 
+  it("should apply default values for partial updates config", async () => {
+    const configPath = join(tmpDir, "config.json5");
+    const content = JSON.stringify({
+      ...validConfig,
+      updates: {
+        skills: {},
+        cli: {},
+      },
+    });
+    await writeFile(configPath, content);
+    const config = await loadConfig(configPath);
+
+    expect(config.updates?.skills?.enabled).toBe(true);
+    expect(config.updates?.skills?.checkInterval).toBe("6h");
+    expect(config.updates?.cli?.enabled).toBe(true);
+    expect(config.updates?.cli?.checkInterval).toBe("24h");
+    expect(config.updates?.cli?.notifyChannel).toBe("telegram");
+  });
+
   it("should accept sandbox.image and sandbox.codeAgent fields", async () => {
     const configPath = join(tmpDir, "config.json5");
     const content = JSON.stringify({

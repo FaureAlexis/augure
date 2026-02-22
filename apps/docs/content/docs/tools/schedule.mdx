@@ -1,9 +1,14 @@
 ---
 title: Schedule Tool
-description: Create, delete, and list cron jobs at runtime
+description: Create, delete, and list scheduled jobs (recurring cron or one-shot)
 ---
 
-The `schedule` tool lets the LLM manage cron jobs dynamically. Jobs created at runtime are persisted to disk and survive restarts.
+The `schedule` tool lets the LLM manage scheduled jobs dynamically. It supports two types of jobs:
+
+- **Recurring** — triggered by a cron expression, runs indefinitely
+- **One-shot** — triggered once at a specific date/time, then auto-removed
+
+Jobs created at runtime are persisted to disk and survive restarts.
 
 ## Parameters
 
@@ -11,14 +16,17 @@ The `schedule` tool lets the LLM manage cron jobs dynamically. Jobs created at r
 |-----------|------|----------|-------------|
 | `action` | `"create" \| "delete" \| "list"` | Yes | The scheduling action to perform |
 | `id` | `string` | For create/delete | Unique job identifier. Auto-generated if omitted on create. |
-| `cron` | `string` | For create | Cron expression (validated by `node-cron`) |
+| `cron` | `string` | For create (recurring) | Cron expression (validated by `node-cron`) |
+| `runAt` | `string` | For create (one-shot) | ISO 8601 date, e.g. `2026-03-15T14:00:00Z` |
 | `prompt` | `string` | For create | The prompt sent to the agent when the job triggers |
+
+Either `cron` or `runAt` must be provided when creating a job, not both.
 
 ## Actions
 
 ### list
 
-Returns all registered jobs with their cron expression, prompt, and status.
+Returns all registered jobs with their schedule, prompt, and status.
 
 ```json
 {
@@ -30,15 +38,17 @@ Returns all registered jobs with their cron expression, prompt, and status.
 Output:
 
 ```
-- morning-check: "Check for anything urgent today." @ 0 8 * * * (enabled)
-- stock-report: "Check portfolio and summarize." @ 0 18 * * 1-5 (enabled)
+- morning-check: "Check for anything urgent today." @ cron: 0 8 * * * (enabled)
+- remind-meeting: "Rappelle la réunion avec Pierre" @ runAt: 2026-03-15T14:00:00Z (enabled)
 ```
 
 If there are no jobs, returns `"No scheduled jobs."`.
 
 ### create
 
-Creates a new cron job. The job starts immediately and persists to disk.
+Creates a new job. The job starts immediately and persists to disk.
+
+**Recurring job (cron):**
 
 ```json
 {
@@ -52,19 +62,35 @@ Creates a new cron job. The job starts immediately and persists to disk.
 }
 ```
 
-Output:
+```
+Created job weather-daily (recurring)
+```
+
+**One-shot job (runAt):**
+
+```json
+{
+  "name": "schedule",
+  "arguments": {
+    "action": "create",
+    "id": "remind-meeting",
+    "runAt": "2026-03-15T14:00:00Z",
+    "prompt": "Rappelle à Alexis sa réunion avec Pierre dans 15 minutes."
+  }
+}
+```
 
 ```
-Created job weather-daily
+Created job remind-meeting (one-shot at 2026-03-15T14:00:00Z)
 ```
 
 If `id` is omitted, a timestamp-based ID is generated (`job-<timestamp>`).
 
-The cron expression is validated before registration. Invalid expressions return an error.
+One-shot jobs are automatically removed after execution. Expired one-shot jobs (date in the past) are discarded on restart.
 
 ### delete
 
-Removes a job by ID. Stops the cron task and removes it from persistence.
+Removes a job by ID. Stops the cron task or cancels the timer, and removes it from persistence.
 
 ```json
 {
@@ -75,8 +101,6 @@ Removes a job by ID. Stops the cron task and removes it from persistence.
   }
 }
 ```
-
-Output:
 
 ```
 Deleted job weather-daily
@@ -107,4 +131,4 @@ Examples:
 
 ## How Jobs Execute
 
-When a cron job triggers, the scheduler fires all registered event handlers. The agent processes the job's `prompt` as if it were a user message, using the full agent loop (memory retrieval, tool calling, LLM reasoning). The response is sent to the configured channel.
+When a job triggers (cron tick or one-shot timer), the scheduler fires all registered event handlers. The agent processes the job's `prompt` as if it were a user message, using the full agent loop (memory retrieval, tool calling, LLM reasoning). The response is sent to Telegram.

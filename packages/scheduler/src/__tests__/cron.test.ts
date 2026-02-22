@@ -67,6 +67,89 @@ describe("CronScheduler", () => {
       "Job not found: nope",
     );
   });
+
+  it("should reject job with neither cron nor runAt", () => {
+    const scheduler = new CronScheduler();
+    expect(() =>
+      scheduler.addJob({ id: "bad", prompt: "x", channel: "c", enabled: true }),
+    ).toThrow("must have either cron or runAt");
+  });
+
+  it("should reject invalid runAt date", () => {
+    const scheduler = new CronScheduler();
+    expect(() =>
+      scheduler.addJob(makeJob({ cron: undefined, runAt: "not-a-date" })),
+    ).toThrow("Invalid runAt date: not-a-date");
+  });
+});
+
+describe("CronScheduler one-shot jobs", () => {
+  it("should schedule and fire a one-shot job", async () => {
+    const scheduler = new CronScheduler();
+    const handler = vi.fn();
+    scheduler.onJobTrigger(handler);
+
+    const runAt = new Date(Date.now() + 100).toISOString();
+    const job = makeJob({ id: "once", cron: undefined, runAt });
+    scheduler.addJob(job);
+    scheduler.start();
+
+    // Wait for the timer to fire
+    await new Promise((r) => setTimeout(r, 250));
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler).toHaveBeenCalledWith(job);
+    // Job should be auto-removed after execution
+    expect(scheduler.listJobs()).toHaveLength(0);
+
+    scheduler.stop();
+  });
+
+  it("should not schedule a one-shot job in the past", () => {
+    const scheduler = new CronScheduler();
+    const handler = vi.fn();
+    scheduler.onJobTrigger(handler);
+
+    const runAt = new Date(Date.now() - 10_000).toISOString();
+    const job = makeJob({ id: "past", cron: undefined, runAt });
+    scheduler.addJob(job);
+    scheduler.start();
+
+    // Job added but timer should not fire (delay <= 0)
+    expect(scheduler.listJobs()).toHaveLength(1);
+
+    scheduler.stop();
+  });
+
+  it("should skip expired one-shot jobs on loadPersistedJobs", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sched-test-"));
+    const store = new JobStore(join(dir, "jobs.json"));
+
+    const pastJob = makeJob({
+      id: "expired",
+      cron: undefined,
+      runAt: new Date(Date.now() - 10_000).toISOString(),
+    });
+    await store.save([pastJob]);
+
+    const scheduler = new CronScheduler(store);
+    await scheduler.loadPersistedJobs();
+
+    expect(scheduler.listJobs()).toHaveLength(0);
+
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("should clean up timer on removeJob", () => {
+    const scheduler = new CronScheduler();
+    const runAt = new Date(Date.now() + 60_000).toISOString();
+    scheduler.addJob(makeJob({ id: "rm-me", cron: undefined, runAt }));
+    scheduler.start();
+    scheduler.removeJob("rm-me");
+
+    expect(scheduler.listJobs()).toHaveLength(0);
+    scheduler.stop();
+  });
 });
 
 describe("CronScheduler with persistence", () => {

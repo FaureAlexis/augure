@@ -42,7 +42,8 @@ export interface MemoryConfig {
 
 export interface SchedulerJobConfig {
   id: string;
-  cron: string;
+  cron?: string;
+  runAt?: string;
   prompt: string;
   channel: string;
 }

@@ -1,6 +1,9 @@
 export interface Job {
   id: string;
-  cron: string;
+  /** Cron expression for recurring jobs. Omit if using runAt. */
+  cron?: string;
+  /** ISO 8601 date string for one-shot jobs. Omit if using cron. */
+  runAt?: string;
   prompt: string;
   channel: string;
   enabled: boolean;
