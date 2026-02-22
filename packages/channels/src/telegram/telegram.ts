@@ -1,9 +1,9 @@
 import { Bot } from "grammy";
 import type { Channel, IncomingMessage, OutgoingMessage } from "@augure/types";
 import { createOutgoingPipeline } from "../pipeline.js";
-import { createEscapeMarkdownMiddleware } from "../middleware/escape-markdown.js";
 import { createSplitMessageMiddleware } from "../middleware/split-message.js";
 import { withRetry } from "../middleware/error-handler.js";
+import { markdownToTelegramHtml } from "../middleware/markdown-to-html.js";
 import { registerMediaHandlers } from "./media.js";
 
 export interface TelegramConfig {
@@ -61,36 +61,33 @@ export class TelegramChannel implements Channel {
       (userId, ts) => this.handleRejected(userId, Math.floor(ts.getTime() / 1000), config.rejectMessage),
     );
 
-    // Build outgoing middleware pipeline
-    const rawSend = async (msg: OutgoingMessage): Promise<void> => {
+    // Build outgoing pipeline: split raw markdown first, then convert + send
+    const convertAndSend = async (msg: OutgoingMessage): Promise<void> => {
+      const htmlText = markdownToTelegramHtml(msg.text);
+      const replyOpts = msg.replyTo
+        ? { reply_parameters: { message_id: Number(msg.replyTo) } }
+        : {};
+
       await withRetry(
         () =>
-          this.bot.api.sendMessage(Number(msg.userId), msg.text, {
-            parse_mode: "MarkdownV2",
-            ...(msg.replyTo
-              ? { reply_parameters: { message_id: Number(msg.replyTo) } }
-              : {}),
+          this.bot.api.sendMessage(Number(msg.userId), htmlText, {
+            parse_mode: "HTML",
+            ...replyOpts,
           }),
         { maxRetries: 3, baseDelayMs: 500 },
       ).catch(async () => {
-        // Fallback: send without parse_mode if MarkdownV2 fails
-        await this.bot.api.sendMessage(Number(msg.userId), msg.text, {
-          ...(msg.replyTo
-            ? { reply_parameters: { message_id: Number(msg.replyTo) } }
-            : {}),
-        }).catch((fallbackErr) => {
-          console.error("[augure:telegram] Fallback send also failed:", fallbackErr);
-          throw fallbackErr;
-        });
+        // Fallback: send as plain text (no formatting)
+        await this.bot.api.sendMessage(Number(msg.userId), msg.text, replyOpts)
+          .catch((fallbackErr) => {
+            console.error("[augure:telegram] Fallback send also failed:", fallbackErr);
+            throw fallbackErr;
+          });
       });
     };
 
     this.sendPipeline = createOutgoingPipeline(
-      [
-        createEscapeMarkdownMiddleware(),
-        createSplitMessageMiddleware(rawSend),
-      ],
-      rawSend,
+      [createSplitMessageMiddleware(convertAndSend)],
+      convertAndSend,
     );
   }
 
