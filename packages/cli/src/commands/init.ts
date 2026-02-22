@@ -1,6 +1,7 @@
 import { defineCommand } from "citty";
 import { writeFile, access } from "node:fs/promises";
 import { resolve } from "node:path";
+import { prefix, ok, dim, bold, cyan } from "../colors.js";
 
 const CONFIG_TEMPLATE = `{
   // Identity
@@ -89,22 +90,22 @@ export const initCommand = defineCommand({
     const envPath = resolve(".env");
 
     if (await fileExists(configPath)) {
-      console.log(`[augure] augure.json5 already exists, skipping.`);
+      console.log(`${prefix} ${dim("augure.json5 already exists, skipping.")}`);
     } else {
       await writeFile(configPath, CONFIG_TEMPLATE, "utf-8");
-      console.log(`[augure] Created augure.json5`);
+      console.log(`${prefix} ${ok("Created")} augure.json5`);
     }
 
     if (await fileExists(envPath)) {
-      console.log(`[augure] .env already exists, skipping.`);
+      console.log(`${prefix} ${dim(".env already exists, skipping.")}`);
     } else {
       await writeFile(envPath, ENV_TEMPLATE, "utf-8");
-      console.log(`[augure] Created .env`);
+      console.log(`${prefix} ${ok("Created")} .env`);
     }
 
-    console.log(`\nNext steps:`);
-    console.log(`  1. Edit augure.json5 with your settings`);
-    console.log(`  2. Fill in .env with your API keys`);
-    console.log(`  3. Run: augure start`);
+    console.log(`\n${bold("Next steps:")}`);
+    console.log(`  1. Edit ${cyan("augure.json5")} with your settings`);
+    console.log(`  2. Fill in ${cyan(".env")} with your API keys`);
+    console.log(`  3. Run: ${bold("augure start")}`);
   },
 });
