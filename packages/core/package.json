@@ -27,6 +27,7 @@
     "@augure/tools": "workspace:*",
     "@augure/types": "workspace:*",
     "dockerode": "^4.0.9",
+    "gray-matter": "^4.0.3",
     "json5": "^2.2.3",
     "zod": "^4.3.6"
   },
