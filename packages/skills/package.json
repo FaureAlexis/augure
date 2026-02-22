@@ -17,5 +17,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@augure/types": "workspace:*",
+    "gray-matter": "^4.0.3"
   }
 }
