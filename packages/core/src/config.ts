@@ -30,6 +30,7 @@ const AppConfigSchema = z.object({
         enabled: z.boolean(),
         botToken: z.string(),
         allowedUsers: z.array(z.number()),
+        rejectMessage: z.string().optional(),
       })
       .optional(),
     whatsapp: z.object({ enabled: z.boolean() }).optional(),
@@ -137,6 +138,23 @@ const AppConfigSchema = z.object({
   persona: z
     .object({
       path: z.string().min(1).default("./config/personas"),
+    })
+    .optional(),
+  updates: z
+    .object({
+      skills: z
+        .object({
+          enabled: z.boolean().default(true),
+          checkInterval: z.string().min(1).default("6h"),
+        })
+        .optional(),
+      cli: z
+        .object({
+          enabled: z.boolean().default(true),
+          checkInterval: z.string().min(1).default("24h"),
+          notifyChannel: z.string().min(1).default("telegram"),
+        })
+        .optional(),
     })
     .optional(),
 });

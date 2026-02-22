@@ -64,6 +64,8 @@ export async function startAgent(configPath: string): Promise<void> {
   const config = await loadConfig(configPath);
   console.log(`[augure] Loaded config: ${config.identity.name}`);
 
+  let telegramChannel: { stop(): Promise<void> } | undefined;
+
   const llm = resolveLLMClient(config.llm, "default");
   const ingestionLLM = resolveLLMClient(config.llm, "ingestion");
   const monitoringLLM = resolveLLMClient(config.llm, "monitoring");
@@ -205,6 +207,7 @@ export async function startAgent(configPath: string): Promise<void> {
     const telegram = new TelegramChannel({
       botToken: config.channels.telegram.botToken,
       allowedUsers: config.channels.telegram.allowedUsers,
+      rejectMessage: config.channels.telegram.rejectMessage,
     });
 
     // Command context for kill switch
@@ -253,6 +256,7 @@ export async function startAgent(configPath: string): Promise<void> {
     });
 
     await telegram.start();
+    telegramChannel = telegram;
     console.log("[augure] Telegram bot started. Waiting for messages...");
   }
 
@@ -287,6 +291,7 @@ export async function startAgent(configPath: string): Promise<void> {
     console.log("\n[augure] Shutting down...");
     heartbeat.stop();
     scheduler.stop();
+    if (telegramChannel) await telegramChannel.stop();
     await pool.destroyAll();
     await audit.close();
     console.log("[augure] All containers destroyed");

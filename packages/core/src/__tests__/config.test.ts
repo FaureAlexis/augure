@@ -127,6 +127,23 @@ describe("loadConfig", () => {
     await expect(loadConfig(join(tmpDir, "nope.json5"))).rejects.toThrow();
   });
 
+  it("should accept updates config", async () => {
+    const configPath = join(tmpDir, "config.json5");
+    const content = JSON.stringify({
+      ...validConfig,
+      updates: {
+        skills: { enabled: true, checkInterval: "6h" },
+        cli: { enabled: true, checkInterval: "24h", notifyChannel: "telegram" },
+      },
+    });
+    await writeFile(configPath, content);
+    const config = await loadConfig(configPath);
+
+    expect(config.updates?.skills?.enabled).toBe(true);
+    expect(config.updates?.skills?.checkInterval).toBe("6h");
+    expect(config.updates?.cli?.notifyChannel).toBe("telegram");
+  });
+
   it("should accept sandbox.image and sandbox.codeAgent fields", async () => {
     const configPath = join(tmpDir, "config.json5");
     const content = JSON.stringify({
