@@ -13,3 +13,5 @@ export type { AgentState, CommandContext, CommandResult } from "./commands.js";
 export { PersonaResolver } from "./persona.js";
 export { ContextGuard } from "./context-guard.js";
 export type { ContextGuardConfig } from "./context-guard.js";
+export { VersionChecker } from "./version-checker.js";
+export type { VersionCheckerConfig, UpdateCheckResult } from "./version-checker.js";
