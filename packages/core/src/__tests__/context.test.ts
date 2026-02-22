@@ -43,4 +43,14 @@ describe("assembleContext", () => {
     expect(messages).toHaveLength(1);
     expect(messages[0].role).toBe("system");
   });
+
+  it("should inject current date and time into system prompt", () => {
+    const messages = assembleContext({
+      systemPrompt: "You are Augure.",
+      memoryContent: "",
+      conversationHistory: [],
+    });
+
+    expect(messages[0].content).toContain("Current date and time:");
+  });
 });

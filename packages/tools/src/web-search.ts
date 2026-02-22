@@ -10,6 +10,10 @@ export const webSearchTool: NativeTool = {
   name: "web_search",
   description:
     "Search the web using the configured search provider (Tavily, Exa, or SearXNG)",
+  configCheck: (ctx) =>
+    ctx.config.tools?.webSearch
+      ? null
+      : "This tool requires configuration. See https://augure.dev/docs/tools/web-search",
   parameters: {
     type: "object",
     properties: {

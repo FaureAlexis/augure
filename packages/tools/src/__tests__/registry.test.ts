@@ -74,4 +74,56 @@ describe("ToolRegistry", () => {
       "Tool not found: ghost",
     );
   });
+
+  it("should append configCheck warning to schema description", () => {
+    const registry = new ToolRegistry();
+    const tool: NativeTool = {
+      ...stubTool("guarded"),
+      configCheck: () => "Needs setup. See https://example.com/docs",
+    };
+    registry.register(tool);
+    registry.setContext({} as import("@augure/types").ToolContext);
+
+    const schemas = registry.toFunctionSchemas();
+    expect(schemas[0].function.description).toContain("[NOT CONFIGURED]");
+    expect(schemas[0].function.description).toContain("https://example.com/docs");
+  });
+
+  it("should skip configCheck when context is not set", () => {
+    const registry = new ToolRegistry();
+    const tool: NativeTool = {
+      ...stubTool("guarded"),
+      configCheck: () => "Needs setup",
+    };
+    registry.register(tool);
+    // No setContext() call
+    const schemas = registry.toFunctionSchemas();
+    expect(schemas[0].function.description).toBe("guarded tool");
+  });
+
+  it("should ignore configCheck errors", () => {
+    const registry = new ToolRegistry();
+    const tool: NativeTool = {
+      ...stubTool("broken"),
+      configCheck: () => { throw new Error("boom"); },
+    };
+    registry.register(tool);
+    registry.setContext({} as import("@augure/types").ToolContext);
+
+    const schemas = registry.toFunctionSchemas();
+    expect(schemas[0].function.description).toBe("broken tool");
+  });
+
+  it("should not modify description when configCheck returns null", () => {
+    const registry = new ToolRegistry();
+    const tool: NativeTool = {
+      ...stubTool("configured"),
+      configCheck: () => null,
+    };
+    registry.register(tool);
+    registry.setContext({} as import("@augure/types").ToolContext);
+
+    const schemas = registry.toFunctionSchemas();
+    expect(schemas[0].function.description).toBe("configured tool");
+  });
 });

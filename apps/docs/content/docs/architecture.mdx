@@ -26,7 +26,7 @@ The codebase is a pnpm monorepo with Turborepo for task orchestration:
 | `@augure/core` | `packages/core` | Agent loop, LLM client, context assembly, config loader |
 | `@augure/memory` | `packages/memory` | FileMemoryStore, MemoryIngester, MemoryRetriever |
 | `@augure/scheduler` | `packages/scheduler` | CronScheduler, JobStore, Heartbeat, parseInterval |
-| `@augure/tools` | `packages/tools` | ToolRegistry + native tools (memory, schedule, web_search, http, sandbox_exec, opencode) |
+| `@augure/tools` | `packages/tools` | ToolRegistry + native tools (memory, schedule, datetime, web_search, http, email, sandbox_exec, opencode) |
 | `@augure/channels` | `packages/channels` | Channel interface + Telegram implementation |
 | `@augure/sandbox` | `packages/sandbox` | Docker container pool with on-demand creation, idle caching, trust-level isolation, and automatic image provisioning |
 | `@augure/skills` | `packages/skills` | Self-generated skill system: LLM generation, sandbox execution, auto-testing, self-healing, scheduler bridge, curated hub |
@@ -85,25 +85,35 @@ The `assembleContext` function builds the message array sent to the LLM. It foll
 
 ### Zone 1: Static Prefix (cached across turns)
 
-1. **System prompt** -- base instructions and persona
-2. **Active persona overlay** -- task-specific behavioral instructions (if any)
-3. **Memory content** -- retrieved from memory files, within the configured token budget
+1. **System prompt** -- base instructions, tools/skills awareness
+2. **Current date and time** -- injected on every LLM call (ISO 8601 + human-readable)
+3. **Active persona overlay** -- task-specific behavioral instructions (if any)
+4. **Memory content** -- retrieved from memory files, within the configured token budget
 
 ### Zone 2: Semi-stable
 
-4. **Tool schemas** -- listed as available tools in the system prompt
+5. **Tool schemas** -- passed as function definitions to the LLM (tools with missing config get a `[NOT CONFIGURED]` warning appended to their description)
 
 ### Zone 3: Dynamic (changes every turn)
 
-5. **Conversation history** -- all user, assistant, and tool messages
+6. **Conversation history** -- all user, assistant, and tool messages
 
 The assembly code:
 
 ```typescript
 export function assembleContext(input: ContextInput): Message[] {
-  const { systemPrompt, memoryContent, toolSchemas, conversationHistory, persona } = input;
+  const { systemPrompt, memoryContent, conversationHistory, persona } = input;
 
   let system = systemPrompt;
+
+  // Always inject current date/time
+  const now = new Date();
+  const humanDate = new Intl.DateTimeFormat("en-US", {
+    weekday: "long", year: "numeric", month: "long",
+    day: "numeric", hour: "2-digit", minute: "2-digit",
+    timeZoneName: "short",
+  }).format(now);
+  system += `\n\nCurrent date and time: ${now.toISOString()} (${humanDate})`;
 
   if (persona) {
     system += `\n\n## Active Persona\n${persona}`;
@@ -113,13 +123,6 @@ export function assembleContext(input: ContextInput): Message[] {
     system += `\n\n## Memory\n${memoryContent}`;
   }
 
-  if (toolSchemas.length > 0) {
-    const toolList = toolSchemas
-      .map((s) => `- **${s.function.name}**: ${s.function.description}`)
-      .join("\n");
-    system += `\n\n## Available Tools\n${toolList}`;
-  }
-
   const messages: Message[] = [{ role: "system", content: system }];
   messages.push(...conversationHistory);
 
@@ -127,4 +130,4 @@ export function assembleContext(input: ContextInput): Message[] {
 }
 ```
 
-The system prompt (Zone 1) stays stable between turns, enabling prompt caching with providers that support it. Memory content only changes when the ingester runs, so cache hits are frequent.
+The system prompt (Zone 1) stays mostly stable between turns, enabling prompt caching with providers that support it. The date/time changes each call but is short enough to not significantly impact caching. Memory content only changes when the ingester runs, so cache hits are frequent.

@@ -8,6 +8,10 @@ export const opencodeTool: NativeTool = {
   name: "opencode",
   description:
     "Run a code agent (claude-code, opencode, codex CLI) in a Docker container to perform a coding task.",
+  configCheck: (ctx) =>
+    ctx.config.sandbox.codeAgent
+      ? null
+      : "This tool requires sandbox.codeAgent configuration. See https://augure.dev/docs/sandbox",
   parameters: {
     type: "object",
     properties: {

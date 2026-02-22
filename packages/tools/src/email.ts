@@ -273,6 +273,10 @@ export const emailTool: NativeTool = {
   name: "email",
   description:
     "Manage email: list recent messages, read by UID, search with criteria, or send an email via SMTP",
+  configCheck: (ctx) =>
+    ctx.config.tools?.email
+      ? null
+      : "This tool requires configuration. See https://augure.dev/docs/tools/email",
   parameters: {
     type: "object",
     properties: {

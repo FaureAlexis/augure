@@ -33,6 +33,8 @@ export interface NativeTool {
   description: string;
   parameters: Record<string, unknown>;
   execute: (params: unknown, ctx: ToolContext) => Promise<ToolResult>;
+  /** Return a warning string when this tool is not configured (appended to description for the LLM). Return null if configured. */
+  configCheck?: (ctx: ToolContext) => string | null;
 }
 
 export interface ToolContext {

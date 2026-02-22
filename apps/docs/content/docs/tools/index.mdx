@@ -15,6 +15,7 @@ export interface NativeTool {
   description: string;
   parameters: Record<string, unknown>;  // JSON Schema
   execute: (params: unknown, ctx: ToolContext) => Promise<ToolResult>;
+  configCheck?: (ctx: ToolContext) => string | null;  // null = configured, string = warning
 }
 
 export interface ToolResult {
@@ -81,7 +82,7 @@ These schemas are injected into the system prompt so the LLM knows what tools ar
 
 ## Available Tools
 
-Augure provides 12 native tools across several packages:
+Augure provides 14 native tools across several packages:
 
 ### Core Tools (`@augure/tools`)
 
@@ -90,11 +91,16 @@ Augure provides 12 native tools across several packages:
 | [`memory_read`](/docs/tools/memory) | Read a memory file or list all files | [Memory Tools](/docs/tools/memory) |
 | [`memory_write`](/docs/tools/memory) | Write content to a memory file | [Memory Tools](/docs/tools/memory) |
 | [`schedule`](/docs/tools/schedule) | Create, delete, or list cron jobs | [Schedule Tool](/docs/tools/schedule) |
+| `datetime` | Get the current date and time in any timezone | Always available |
 | [`web_search`](/docs/tools/web-search) | Search the web via Tavily, Exa, or SearXNG | [Web Search Tool](/docs/tools/web-search) |
 | [`http`](/docs/tools/http) | Make HTTP requests with optional auth presets | [HTTP Tool](/docs/tools/http) |
 | [`email`](/docs/tools/email) | Read, search, and send emails via IMAP/SMTP | [Email Tool](/docs/tools/email) |
 | `sandbox_exec` | Execute a command in a Docker sandbox container | Requires sandbox config |
 | `opencode` | Run a coding agent (claude-code, opencode) in a container | Requires sandbox.codeAgent config |
+
+### Configuration Awareness
+
+Tools that require configuration (like `web_search`, `email`, `opencode`) implement a `configCheck` function. When these tools are not configured, the LLM sees a `[NOT CONFIGURED]` warning appended to their description with a link to the relevant documentation page. This way the agent can inform the user about what needs to be set up instead of failing silently.
 
 ### Skill Tools (`@augure/skills`)
 

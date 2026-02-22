@@ -1,3 +1,4 @@
+import type { Logger } from "@augure/types";
 import { loadConfig } from "./config.js";
 import { OpenRouterClient } from "./llm.js";
 import { Agent } from "./agent.js";
@@ -5,14 +6,17 @@ import { FileAuditLogger, NullAuditLogger } from "./audit.js";
 import { handleCommand } from "./commands.js";
 import { PersonaResolver } from "./persona.js";
 import { ContextGuard } from "./context-guard.js";
+import { createLogger } from "./logger.js";
 import { TelegramChannel } from "@augure/channels";
 import {
   ToolRegistry,
   memoryReadTool,
   memoryWriteTool,
   scheduleTool,
+  datetimeTool,
   webSearchTool,
   httpTool,
+  emailTool,
   sandboxExecTool,
   opencodeTool,
 } from "@augure/tools";
@@ -45,13 +49,37 @@ import { resolve } from "node:path";
 import { createRequire } from "node:module";
 import { VersionChecker } from "./version-checker.js";
 
-const SYSTEM_PROMPT = `You are Augure, a personal AI assistant. You are proactive, helpful, and concise.
+const BASE_SYSTEM_PROMPT = `You are Augure, a personal AI assistant. You are proactive, helpful, and concise.
 You speak the same language as the user. You have access to tools and persistent memory.
-Always be direct and actionable.`;
+Always be direct and actionable.
+
+## Your capabilities
+
+You have access to tools that let you interact with the outside world. Use the datetime tool when the user needs precise time information beyond what is shown in the current date above. Use memory tools to remember and recall information across conversations. Use the schedule tool to create recurring or one-shot tasks.
+
+If a tool is marked as [NOT CONFIGURED], let the user know it needs to be set up first and share the documentation link from the tool description.`;
+
+const SKILLS_PROMPT = `
+## Skills
+
+You can create and manage "skills" — autonomous code units that run in isolated Docker containers. Skills are powerful: they let you automate tasks, run on a schedule, and self-heal when they break.
+
+- Use skill_list to see existing skills and their status
+- Use skill_generate to create a new skill from a natural language description
+- Use skill_run to execute a skill manually
+- Use skill_heal to fix a broken skill
+- Use skill_install to install a skill from the hub
+
+When a user asks to automate a recurring task (e.g. "check this every morning", "send me a summary daily"), suggest creating a skill with a cron trigger. Skills can also be triggered manually or by events.`;
+
+export interface StartAgentOptions {
+  debug?: boolean;
+}
 
 function resolveLLMClient(
   config: import("@augure/types").LLMConfig,
   usage: "default" | "ingestion" | "monitoring" | "reasoning" | "coding",
+  logger: Logger,
 ): OpenRouterClient {
   const override = usage !== "default"
     ? (config[usage] as { apiKey?: string; model?: string; maxTokens?: number } | undefined)
@@ -60,22 +88,29 @@ function resolveLLMClient(
     apiKey: override?.apiKey ?? config.default.apiKey,
     model: override?.model ?? config.default.model,
     maxTokens: override?.maxTokens ?? config.default.maxTokens,
+    logger: logger.child("llm"),
   });
 }
 
-export async function startAgent(configPath: string): Promise<void> {
+export async function startAgent(
+  configPath: string,
+  opts?: StartAgentOptions,
+): Promise<void> {
+  const log = createLogger({ level: opts?.debug ? "debug" : "info" });
+
   const config = await loadConfig(configPath);
-  console.log(`[augure] Loaded config: ${config.identity.name}`);
+  log.info(`Loaded config: ${config.identity.name}`);
+  log.debug(`Config path: ${configPath}`);
 
   let telegram: TelegramChannel | undefined;
 
-  const llm = resolveLLMClient(config.llm, "default");
-  const ingestionLLM = resolveLLMClient(config.llm, "ingestion");
-  const monitoringLLM = resolveLLMClient(config.llm, "monitoring");
+  const llm = resolveLLMClient(config.llm, "default", log);
+  const ingestionLLM = resolveLLMClient(config.llm, "ingestion", log);
+  const monitoringLLM = resolveLLMClient(config.llm, "monitoring", log);
 
   const memoryPath = resolve(configPath, "..", config.memory.path);
   const memory = new FileMemoryStore(memoryPath);
-  console.log(`[augure] Memory store: ${memoryPath}`);
+  log.info(`Memory store: ${memoryPath}`);
 
   const retriever = new MemoryRetriever(memory, {
     maxTokens: config.memory.maxRetrievalTokens,
@@ -89,8 +124,10 @@ export async function startAgent(configPath: string): Promise<void> {
   tools.register(memoryReadTool);
   tools.register(memoryWriteTool);
   tools.register(scheduleTool);
+  tools.register(datetimeTool);
   tools.register(webSearchTool);
   tools.register(httpTool);
+  tools.register(emailTool);
   tools.register(sandboxExecTool);
   tools.register(opencodeTool);
 
@@ -100,7 +137,7 @@ export async function startAgent(configPath: string): Promise<void> {
 
   // Load persisted jobs from disk
   await scheduler.loadPersistedJobs();
-  console.log(`[augure] Loaded ${scheduler.listJobs().length} persisted jobs`);
+  log.info(`Loaded ${scheduler.listJobs().length} persisted jobs`);
 
   // Add config-defined jobs (skip if already persisted)
   for (const job of config.scheduler.jobs) {
@@ -112,19 +149,21 @@ export async function startAgent(configPath: string): Promise<void> {
   // Create container pool (auto-build image if missing)
   const docker = new Dockerode();
   const sandboxImage = config.sandbox.image ?? "augure-sandbox:latest";
-  await ensureImage(docker, sandboxImage);
+  const sandboxLog = log.child("sandbox");
+  await ensureImage(docker, sandboxImage, sandboxLog);
   const pool = new DockerContainerPool(docker, {
     image: sandboxImage,
     maxTotal: config.security.maxConcurrentSandboxes,
+    logger: sandboxLog,
   });
-  console.log(`[augure] Container pool created (max: ${config.security.maxConcurrentSandboxes})`);
+  log.info(`Container pool: max=${config.security.maxConcurrentSandboxes}`);
 
   // Skills setup (optional — only if config.skills is present)
   let skillManagerRef: { updateStatus(id: string, status: string): Promise<void> } | undefined;
   let skillUpdater: SkillUpdater | undefined;
   if (config.skills) {
     const skillsPath = resolve(configPath, "..", config.skills.path);
-    const codingLLM = resolveLLMClient(config.llm, "coding");
+    const codingLLM = resolveLLMClient(config.llm, "coding", log);
 
     const skillManager = new SkillManager(skillsPath);
     const skillGenerator = new SkillGenerator(codingLLM);
@@ -180,18 +219,18 @@ export async function startAgent(configPath: string): Promise<void> {
         const updated = updateResults.filter((r) => r.success);
         const failed = updateResults.filter((r) => !r.success);
         if (updated.length > 0) {
-          console.log(`[augure] Skills updated: ${updated.map((r) => `${r.skillId} (v${r.fromVersion}→v${r.toVersion})`).join(", ")}`);
+          log.info(`Skills updated: ${updated.map((r) => `${r.skillId} (v${r.fromVersion}→v${r.toVersion})`).join(", ")}`);
         }
         if (failed.length > 0) {
-          console.log(`[augure] Skill updates failed: ${failed.map((r) => `${r.skillId}: ${r.error}`).join(", ")}`);
+          log.warn(`Skill updates failed: ${failed.map((r) => `${r.skillId}: ${r.error}`).join(", ")}`);
         }
       } catch (err) {
-        console.error("[augure] Skill update check failed:", err);
+        log.error("Skill update check failed:", err);
       }
     }
 
     skillManagerRef = skillManager;
-    console.log(`[augure] Skills system initialized at ${skillsPath}`);
+    log.info(`Skills initialized: ${skillsPath}`);
   }
 
   tools.setContext({ config, memory, scheduler, pool });
@@ -200,9 +239,9 @@ export async function startAgent(configPath: string): Promise<void> {
   const auditConfig = config.audit ?? { path: "./logs", enabled: true };
   const auditPath = resolve(configPath, "..", auditConfig.path);
   const audit = auditConfig.enabled
-    ? new FileAuditLogger(auditPath)
+    ? new FileAuditLogger(auditPath, log.child("audit"))
     : new NullAuditLogger();
-  console.log(`[augure] Audit logger: ${auditConfig.enabled ? auditPath : "disabled"}`);
+  log.info(`Audit: ${auditConfig.enabled ? auditPath : "disabled"}`);
 
   // Persona resolver
   let personaResolver: PersonaResolver | undefined;
@@ -210,7 +249,7 @@ export async function startAgent(configPath: string): Promise<void> {
     const personaPath = resolve(configPath, "..", config.persona.path);
     personaResolver = new PersonaResolver(personaPath);
     await personaResolver.loadAll();
-    console.log(`[augure] Personas loaded from ${personaPath}`);
+    log.info(`Personas: ${personaPath}`);
   }
 
   // Resolve CLI version (used for startup check + periodic notification)
@@ -231,8 +270,8 @@ export async function startAgent(configPath: string): Promise<void> {
     });
     const versionResult = await versionChecker.check();
     if (versionResult.updateAvailable) {
-      console.log(
-        `[augure] Update available: v${versionResult.latestVersion} (current: v${versionResult.currentVersion}). Run: npm update -g augure`,
+      log.warn(
+        `Update available: v${versionResult.latestVersion} (current: v${versionResult.currentVersion}). Run: npm update -g augure`,
       );
     }
   }
@@ -244,23 +283,30 @@ export async function startAgent(configPath: string): Promise<void> {
     reservedForOutput: config.llm.default.maxTokens ?? 8_192,
   });
 
+  const systemPrompt = config.skills
+    ? BASE_SYSTEM_PROMPT + SKILLS_PROMPT
+    : BASE_SYSTEM_PROMPT;
+
   const agent = new Agent({
     llm,
     tools,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt,
     memoryContent: "",
     retriever,
     ingester,
     audit,
     guard,
     modelName: config.llm.default.model,
+    logger: log.child("agent"),
   });
 
   if (config.channels.telegram?.enabled) {
+    const telegramLog = log.child("telegram");
     telegram = new TelegramChannel({
       botToken: config.channels.telegram.botToken,
       allowedUsers: config.channels.telegram.allowedUsers,
       rejectMessage: config.channels.telegram.rejectMessage,
+      logger: telegramLog,
     });
     const tg = telegram;
 
@@ -273,7 +319,7 @@ export async function startAgent(configPath: string): Promise<void> {
     };
 
     tg.onMessage(async (msg) => {
-      console.log(`[augure] Message from ${msg.userId}: ${msg.text}`);
+      log.info(`Message from ${msg.userId}: ${msg.text}`);
       try {
         // Intercept commands before agent processing
         const cmdResult = await handleCommand(msg.text, commandCtx);
@@ -300,7 +346,7 @@ export async function startAgent(configPath: string): Promise<void> {
           replyTo: msg.id,
         });
       } catch (err) {
-        console.error("[augure] Error handling message:", err);
+        log.error("Error handling message:", err);
         await tg.send({
           channelType: "telegram",
           userId: msg.userId,
@@ -310,7 +356,7 @@ export async function startAgent(configPath: string): Promise<void> {
     });
 
     await tg.start();
-    console.log("[augure] Telegram bot started. Waiting for messages...");
+    log.info("Telegram bot started");
   }
 
   // Set up heartbeat
@@ -321,8 +367,9 @@ export async function startAgent(configPath: string): Promise<void> {
     llm: monitoringLLM,
     memory,
     intervalMs: heartbeatIntervalMs,
+    logger: log.child("heartbeat"),
     onAction: async (action) => {
-      console.log(`[augure] Heartbeat action: ${action}`);
+      log.info(`Heartbeat action: ${action}`);
       const response = await agent.handleMessage({
         id: `heartbeat-${Date.now()}`,
         channelType: "system",
@@ -330,12 +377,12 @@ export async function startAgent(configPath: string): Promise<void> {
         text: `[Heartbeat] ${action}`,
         timestamp: new Date(),
       });
-      console.log(`[augure] Heartbeat response: ${response}`);
+      log.debug(`Heartbeat response: ${response.slice(0, 200)}`);
     },
   });
 
   scheduler.onJobTrigger(async (job) => {
-    console.log(`[augure] Job triggered: ${job.id}`);
+    log.info(`Job triggered: ${job.id}`);
     const response = await agent.handleMessage({
       id: `job-${job.id}-${Date.now()}`,
       channelType: "system",
@@ -354,13 +401,13 @@ export async function startAgent(configPath: string): Promise<void> {
         });
       }
     }
-    console.log(`[augure] Job ${job.id} completed`);
+    log.debug(`Job ${job.id} completed`);
   });
 
   scheduler.start();
   heartbeat.start();
-  console.log(
-    `[augure] Scheduler started with ${scheduler.listJobs().length} jobs. Heartbeat every ${config.scheduler.heartbeatInterval}.`,
+  log.info(
+    `Scheduler started: ${scheduler.listJobs().length} jobs, heartbeat every ${config.scheduler.heartbeatInterval}`,
   );
 
   // Periodic update timers (stored for cleanup on shutdown)
@@ -375,13 +422,13 @@ export async function startAgent(configPath: string): Promise<void> {
         const results = await su.checkAndApply();
         for (const r of results) {
           if (r.success) {
-            console.log(`[augure] Skill auto-updated: ${r.skillId} v${r.fromVersion}→v${r.toVersion}`);
+            log.info(`Skill auto-updated: ${r.skillId} v${r.fromVersion}→v${r.toVersion}`);
           } else if (r.rolledBack) {
-            console.log(`[augure] Skill update rolled back: ${r.skillId} - ${r.error}`);
+            log.warn(`Skill update rolled back: ${r.skillId} - ${r.error}`);
           }
         }
       } catch (err) {
-        console.error("[augure] Periodic skill update check failed:", err);
+        log.error("Periodic skill update check failed:", err);
       }
     }, skillCheckMs));
   }
@@ -408,20 +455,20 @@ export async function startAgent(configPath: string): Promise<void> {
           }
         }
       } catch (err) {
-        console.error("[augure] CLI version check failed:", err);
+        log.error("CLI version check failed:", err);
       }
     }, cliCheckMs));
   }
 
   const shutdown = async () => {
-    console.log("\n[augure] Shutting down...");
+    log.info("Shutting down...");
     for (const timer of updateTimers) clearInterval(timer);
     heartbeat.stop();
     scheduler.stop();
     if (telegram) await telegram.stop();
     await pool.destroyAll();
     await audit.close();
-    console.log("[augure] All containers destroyed");
+    log.info("All containers destroyed");
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
