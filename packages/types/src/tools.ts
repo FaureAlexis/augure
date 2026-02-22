@@ -8,6 +8,7 @@ import type {
   ToolsConfig,
   SecurityConfig,
 } from "./config.js";
+import type { SkillsConfig } from "./skills.js";
 import type { MemoryStore } from "./memory.js";
 import type { Scheduler } from "./scheduler.js";
 import type { ContainerPool } from "./sandbox.js";
@@ -47,4 +48,5 @@ export interface AppConfig {
   sandbox: SandboxConfig;
   tools: ToolsConfig;
   security: SecurityConfig;
+  skills?: SkillsConfig;
 }
