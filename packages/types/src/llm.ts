@@ -2,12 +2,22 @@ export interface Message {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
   toolCallId?: string;
+  toolCalls?: ToolCall[];
 }
 
 export interface ToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+}
+
+export interface FunctionSchema {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
 }
 
 export interface LLMResponse {
@@ -22,5 +32,5 @@ export interface TokenUsage {
 }
 
 export interface LLMClient {
-  chat(messages: Message[]): Promise<LLMResponse>;
+  chat(messages: Message[], tools?: FunctionSchema[]): Promise<LLMResponse>;
 }

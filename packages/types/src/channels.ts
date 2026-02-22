@@ -1,3 +1,11 @@
+export interface Attachment {
+  type: "photo" | "document";
+  fileId: string;
+  fileName?: string;
+  mimeType?: string;
+  caption?: string;
+}
+
 export interface IncomingMessage {
   id: string;
   channelType: "telegram" | "whatsapp" | "web" | "system";
@@ -5,6 +13,7 @@ export interface IncomingMessage {
   text: string;
   timestamp: Date;
   replyTo?: string;
+  attachments?: Attachment[];
 }
 
 export interface OutgoingMessage {

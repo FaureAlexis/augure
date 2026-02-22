@@ -1,13 +1,6 @@
-import type { NativeTool, ToolContext, ToolResult } from "@augure/types";
+import type { NativeTool, ToolContext, ToolResult, FunctionSchema } from "@augure/types";
 
-export interface FunctionSchema {
-  type: "function";
-  function: {
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  };
-}
+export type { FunctionSchema };
 
 export class ToolRegistry {
   private tools = new Map<string, NativeTool>();

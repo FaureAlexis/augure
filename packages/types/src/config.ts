@@ -23,6 +23,7 @@ export interface ChannelsConfig {
     enabled: boolean;
     botToken: string;
     allowedUsers: number[];
+    rejectMessage?: string;
   };
   whatsapp?: {
     enabled: boolean;
