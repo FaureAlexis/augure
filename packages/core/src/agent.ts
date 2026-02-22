@@ -23,7 +23,7 @@ export interface AgentConfig {
 
 export class Agent {
   private readonly config: AgentConfig;
-  private conversationHistory: Message[] = [];
+  private conversations: Map<string, Message[]> = new Map();
   private state: AgentState = "running";
 
   constructor(config: AgentConfig) {
@@ -48,18 +48,22 @@ export class Agent {
     }
 
     const start = Date.now();
+    const userId = incoming.userId;
 
-    this.conversationHistory.push({
+    // Get or create conversation history for this user
+    let history = this.conversations.get(userId) ?? [];
+
+    history.push({
       role: "user",
       content: incoming.text,
     });
 
     // Apply context guard if configured
     if (this.config.guard) {
-      this.conversationHistory = this.config.guard.compact(
-        this.conversationHistory,
-      );
+      history = this.config.guard.compact(history);
     }
+
+    this.conversations.set(userId, history);
 
     // Use dynamic retrieval if available, otherwise fall back to static string
     let memoryContent = this.config.memoryContent;
@@ -70,19 +74,20 @@ export class Agent {
     const maxLoops = this.config.maxToolLoops ?? 10;
     let loopCount = 0;
 
+    const toolSchemas = this.config.tools.toFunctionSchemas();
+
     while (loopCount < maxLoops) {
       const messages = assembleContext({
         systemPrompt: this.config.systemPrompt,
         memoryContent,
-        toolSchemas: this.config.tools.toFunctionSchemas(),
-        conversationHistory: this.conversationHistory,
+        conversationHistory: history,
         persona: this.config.persona,
       });
 
-      const response = await this.config.llm.chat(messages);
+      const response = await this.config.llm.chat(messages, toolSchemas);
 
       if (response.toolCalls.length === 0) {
-        this.conversationHistory.push({
+        history.push({
           role: "assistant",
           content: response.content,
         });
@@ -108,16 +113,17 @@ export class Agent {
         // Trigger ingestion in background (don't block response)
         if (this.config.ingester) {
           this.config.ingester
-            .ingest(this.conversationHistory)
+            .ingest(history)
             .catch((err) => console.error("[augure] Ingestion error:", err));
         }
 
         return response.content;
       }
 
-      this.conversationHistory.push({
+      history.push({
         role: "assistant",
         content: response.content || "",
+        toolCalls: response.toolCalls,
       });
 
       for (const toolCall of response.toolCalls) {
@@ -126,7 +132,7 @@ export class Agent {
           toolCall.name,
           toolCall.arguments,
         );
-        this.conversationHistory.push({
+        history.push({
           role: "tool",
           content: result.output,
           toolCallId: toolCall.id,
@@ -153,11 +159,22 @@ export class Agent {
     return "Max tool call loops reached. Please try again.";
   }
 
-  getConversationHistory(): Message[] {
-    return [...this.conversationHistory];
+  getConversationHistory(userId?: string): Message[] {
+    if (userId) {
+      return [...(this.conversations.get(userId) ?? [])];
+    }
+    const all: Message[] = [];
+    for (const msgs of this.conversations.values()) {
+      all.push(...msgs);
+    }
+    return all;
   }
 
-  clearHistory(): void {
-    this.conversationHistory = [];
+  clearHistory(userId?: string): void {
+    if (userId) {
+      this.conversations.delete(userId);
+    } else {
+      this.conversations.clear();
+    }
   }
 }

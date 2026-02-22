@@ -176,6 +176,68 @@ describe("Agent", () => {
     expect(systemMsg?.content).toContain("dynamic memory content");
   });
 
+  it("should isolate conversation history per userId", async () => {
+    const llm = createMockLLM({ content: "Reply" });
+    const tools = new ToolRegistry();
+    const agent = new Agent({
+      llm,
+      tools,
+      systemPrompt: "You are Augure.",
+      memoryContent: "",
+    });
+
+    await agent.handleMessage({
+      id: "1", channelType: "telegram", userId: "user-A",
+      text: "Hello from A", timestamp: new Date(),
+    });
+
+    await agent.handleMessage({
+      id: "2", channelType: "telegram", userId: "user-B",
+      text: "Hello from B", timestamp: new Date(),
+    });
+
+    await agent.handleMessage({
+      id: "3", channelType: "telegram", userId: "user-A",
+      text: "Second from A", timestamp: new Date(),
+    });
+
+    const callArgs = (llm.chat as ReturnType<typeof vi.fn>).mock
+      .calls[2][0] as Message[];
+    const userMessages = callArgs.filter((m) => m.role === "user");
+    expect(userMessages).toHaveLength(2);
+    expect(userMessages[0]!.content).toBe("Hello from A");
+    expect(userMessages[1]!.content).toBe("Second from A");
+  });
+
+  it("should clear history for a specific user", async () => {
+    const llm = createMockLLM({ content: "Reply" });
+    const tools = new ToolRegistry();
+    const agent = new Agent({
+      llm,
+      tools,
+      systemPrompt: "You are Augure.",
+      memoryContent: "",
+    });
+
+    await agent.handleMessage({
+      id: "1", channelType: "telegram", userId: "user-A",
+      text: "Message 1", timestamp: new Date(),
+    });
+
+    agent.clearHistory("user-A");
+
+    await agent.handleMessage({
+      id: "2", channelType: "telegram", userId: "user-A",
+      text: "Message 2", timestamp: new Date(),
+    });
+
+    const callArgs = (llm.chat as ReturnType<typeof vi.fn>).mock
+      .calls[1][0] as Message[];
+    const userMessages = callArgs.filter((m) => m.role === "user");
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0]!.content).toBe("Message 2");
+  });
+
   it("should trigger ingestion after message when ingester is provided", async () => {
     const llm = createMockLLM({ content: "Response" });
     const tools = new ToolRegistry();
