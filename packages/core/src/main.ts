@@ -1,6 +1,10 @@
 import { loadConfig } from "./config.js";
 import { OpenRouterClient } from "./llm.js";
 import { Agent } from "./agent.js";
+import { FileAuditLogger, NullAuditLogger } from "./audit.js";
+import { handleCommand } from "./commands.js";
+import { PersonaResolver } from "./persona.js";
+import { ContextGuard } from "./context-guard.js";
 import { TelegramChannel } from "@augure/channels";
 import {
   ToolRegistry,
@@ -109,6 +113,7 @@ export async function startAgent(configPath: string): Promise<void> {
   console.log(`[augure] Container pool created (max: ${config.security.maxConcurrentSandboxes})`);
 
   // Skills setup (optional — only if config.skills is present)
+  let skillManagerRef: { updateStatus(id: string, status: string): Promise<void> } | undefined;
   if (config.skills) {
     const skillsPath = resolve(configPath, "..", config.skills.path);
     const codingLLM = resolveLLMClient(config.llm, "coding");
@@ -154,10 +159,35 @@ export async function startAgent(configPath: string): Promise<void> {
     const skillBridge = new SkillSchedulerBridge(scheduler, skillManager);
     await skillBridge.syncAll();
 
+    skillManagerRef = skillManager;
     console.log(`[augure] Skills system initialized at ${skillsPath}`);
   }
 
   tools.setContext({ config, memory, scheduler, pool });
+
+  // Audit logger
+  const auditConfig = config.audit ?? { path: "./logs", enabled: true };
+  const auditPath = resolve(configPath, "..", auditConfig.path);
+  const audit = auditConfig.enabled
+    ? new FileAuditLogger(auditPath)
+    : new NullAuditLogger();
+  console.log(`[augure] Audit logger: ${auditConfig.enabled ? auditPath : "disabled"}`);
+
+  // Persona resolver
+  let personaResolver: PersonaResolver | undefined;
+  if (config.persona) {
+    const personaPath = resolve(configPath, "..", config.persona.path);
+    personaResolver = new PersonaResolver(personaPath);
+    await personaResolver.loadAll();
+    console.log(`[augure] Personas loaded from ${personaPath}`);
+  }
+
+  // Context guard — maxContextTokens is the model's context window,
+  // reservedForOutput is the max output tokens from config
+  const guard = new ContextGuard({
+    maxContextTokens: 200_000,
+    reservedForOutput: config.llm.default.maxTokens ?? 8_192,
+  });
 
   const agent = new Agent({
     llm,
@@ -166,6 +196,9 @@ export async function startAgent(configPath: string): Promise<void> {
     memoryContent: "",
     retriever,
     ingester,
+    audit,
+    guard,
+    modelName: config.llm.default.model,
   });
 
   if (config.channels.telegram?.enabled) {
@@ -174,9 +207,34 @@ export async function startAgent(configPath: string): Promise<void> {
       allowedUsers: config.channels.telegram.allowedUsers,
     });
 
+    // Command context for kill switch
+    const commandCtx = {
+      scheduler,
+      pool,
+      agent,
+      skillManager: skillManagerRef,
+    };
+
     telegram.onMessage(async (msg) => {
       console.log(`[augure] Message from ${msg.userId}: ${msg.text}`);
       try {
+        // Intercept commands before agent processing
+        const cmdResult = await handleCommand(msg.text, commandCtx);
+        if (cmdResult.handled) {
+          await telegram.send({
+            channelType: "telegram",
+            userId: msg.userId,
+            text: cmdResult.response ?? "OK",
+            replyTo: msg.id,
+          });
+          return;
+        }
+
+        // Resolve persona dynamically
+        if (personaResolver) {
+          agent.setPersona(personaResolver.resolve(msg.text));
+        }
+
         const response = await agent.handleMessage(msg);
         await telegram.send({
           channelType: "telegram",
@@ -230,6 +288,7 @@ export async function startAgent(configPath: string): Promise<void> {
     heartbeat.stop();
     scheduler.stop();
     await pool.destroyAll();
+    await audit.close();
     console.log("[augure] All containers destroyed");
     process.exit(0);
   };

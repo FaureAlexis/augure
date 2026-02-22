@@ -128,6 +128,17 @@ const AppConfigSchema = z.object({
         .optional(),
     })
     .optional(),
+  audit: z
+    .object({
+      path: z.string().min(1).default("./logs"),
+      enabled: z.boolean().default(true),
+    })
+    .optional(),
+  persona: z
+    .object({
+      path: z.string().min(1).default("./config/personas"),
+    })
+    .optional(),
 });
 
 function interpolateEnvVars(raw: string): string {
