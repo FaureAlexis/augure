@@ -173,6 +173,14 @@ export class DockerContainer implements Container {
 
       // Separate stdout and stderr from the multiplexed Docker stream.
       this.demux(stream, stdoutPT, stderrPT);
+
+      // C5: demuxStream does NOT end the PassThrough streams when the
+      // Docker stream closes. Without this, tryResolve() is never called
+      // and exec hangs until timeout.
+      stream.on("end", () => {
+        stdoutPT.end();
+        stderrPT.end();
+      });
     });
   }
 }

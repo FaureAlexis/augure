@@ -217,6 +217,47 @@ describe("DockerContainer", () => {
     await expect(execPromise).rejects.toThrow("stream broke");
   });
 
+  it("should resolve when Docker stream ends even if demux does not end PassThroughs", async () => {
+    // This simulates real dockerode behavior: demuxStream reads from
+    // the Docker stream and writes to PassThroughs, but never calls
+    // .end() on them. The container code must propagate the Docker
+    // stream's "end" event to the PassThroughs.
+    const fakeStream = new PassThrough();
+
+    const execObj = {
+      start: vi.fn().mockResolvedValue(fakeStream),
+      inspect: vi.fn().mockResolvedValue({ ExitCode: 0 }),
+    };
+
+    const raw = {
+      id: "demux-test",
+      exec: vi.fn().mockResolvedValue(execObj),
+      stop: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+    };
+
+    // Simulates real demuxStream: reads from the input stream (so "end"
+    // can fire on its readable side) and writes to stdout, but does NOT
+    // end the PassThrough streams.
+    const demux = (stream: NodeJS.ReadableStream, stdout: NodeJS.WritableStream) => {
+      stdout.write("output from command\n");
+      // Consume the readable side (like real demuxStream does via
+      // stream.on('readable') + stream.read()), so that the "end"
+      // event can fire when the stream is closed.
+      (stream as PassThrough).resume();
+    };
+
+    const container = new DockerContainer(raw as unknown as Dockerode.Container, demux);
+    const execPromise = container.exec("echo test");
+
+    // Simulate Docker closing the stream after command finishes
+    setTimeout(() => fakeStream.end(), 20);
+
+    const result = await execPromise;
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("output from command\n");
+  });
+
   it("should truncate output at 1 MB", async () => {
     const big = Buffer.alloc(1024 * 1024 + 500, "x"); // slightly over 1 MB
 
