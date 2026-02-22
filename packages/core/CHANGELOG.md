@@ -1,6 +1,6 @@
-# augure
+# @augure/core
 
-## 0.4.0
+## 0.1.0
 
 ### Minor Changes
 
@@ -29,14 +29,13 @@
 
   - Add channels overview and Telegram setup guide to Fumadocs site
 
-## 0.3.0
+### Patch Changes
 
-### Minor Changes
-
-- 5be48b4: Bundle CLI with tsup for standalone npm distribution, add email tool (IMAP/SMTP), and add changelog + CLI reference to docs.
-
-## 0.2.0
-
-### Minor Changes
-
-- 00fae0e: Initial release: CLI with `augure start` and `augure init` commands, npm publishing pipeline with changesets, and GitHub Actions CI/CD.
+- Updated dependencies [7c430c9]
+  - @augure/types@0.1.0
+  - @augure/channels@0.1.0
+  - @augure/skills@0.1.0
+  - @augure/memory@0.0.2
+  - @augure/sandbox@0.0.2
+  - @augure/scheduler@0.0.2
+  - @augure/tools@0.0.2
