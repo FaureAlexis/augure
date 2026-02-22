@@ -27,7 +27,7 @@ export function Mermaid({ chart }: { chart: string }) {
 
     const id = `mermaid-${Math.random().toString(36).slice(2, 9)}`;
 
-    mermaid.render(id, chart).then(({ svg }) => {
+    mermaid.render(id, chart.replace(/\\n/g, "<br/>")).then(({ svg }) => {
       el.innerHTML = svg;
     });
   }, [chart]);
