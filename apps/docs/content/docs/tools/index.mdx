@@ -41,10 +41,11 @@ export interface ToolContext {
   config: AppConfig;
   memory: MemoryStore;
   scheduler: Scheduler;
+  pool?: ContainerPool;
 }
 ```
 
-This allows tools to read/write memory, manage scheduled jobs, and access configuration -- all without needing their own initialization.
+This allows tools to read/write memory, manage scheduled jobs, access Docker containers, and read configuration -- all without needing their own initialization.
 
 ## ToolRegistry
 
@@ -80,7 +81,9 @@ These schemas are injected into the system prompt so the LLM knows what tools ar
 
 ## Available Tools
 
-Augure currently provides 5 native tools:
+Augure provides 12 native tools across several packages:
+
+### Core Tools (`@augure/tools`)
 
 | Tool | Description | Details |
 |------|-------------|---------|
@@ -89,6 +92,20 @@ Augure currently provides 5 native tools:
 | [`schedule`](/docs/tools/schedule) | Create, delete, or list cron jobs | [Schedule Tool](/docs/tools/schedule) |
 | [`web_search`](/docs/tools/web-search) | Search the web via Tavily, Exa, or SearXNG | [Web Search Tool](/docs/tools/web-search) |
 | [`http`](/docs/tools/http) | Make HTTP requests with optional auth presets | [HTTP Tool](/docs/tools/http) |
+| `sandbox_exec` | Execute a command in a Docker sandbox container | Requires sandbox config |
+| `opencode` | Run a coding agent (claude-code, opencode) in a container | Requires sandbox.codeAgent config |
+
+### Skill Tools (`@augure/skills`)
+
+Registered when `skills` is configured. See [Skills System](/docs/skills) for details.
+
+| Tool | Description |
+|------|-------------|
+| `create_skill` | Generate a new skill from a natural language description |
+| `list_skills` | List all skills with status and trigger info |
+| `run_skill` | Manually trigger a skill execution by ID |
+| `manage_skill` | Pause, resume, or delete a skill |
+| `install_skill` | Install a curated skill from the GitHub hub |
 
 ## How Tool Calling Works
 

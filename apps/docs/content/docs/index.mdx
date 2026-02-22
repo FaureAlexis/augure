@@ -16,7 +16,7 @@ The name comes from French/Latin for "oracle, the one who foresees." Augure anti
 - **Secure by default** -- All execution in Docker containers. Credentials never touch disk. No inbound ports required.
 - **Proactive** -- Not just reactive chat. Schedules, monitors, and acts on your behalf 24/7 via cron jobs and heartbeat checks.
 - **Cost-aware** -- Per-usage model routing. Cheap models for monitoring and ingestion, full models for reasoning.
-- **Self-improving** -- The agent extracts observations from conversations and builds persistent memory over time.
+- **Self-improving** -- Extracts observations from conversations, generates reusable skills (code + tests), and auto-heals broken skills via LLM-powered self-repair.
 
 ## Quick Start
 
@@ -56,6 +56,7 @@ No ports to open, no firewall to configure. The agent uses outbound polling only
 - [Configuration Reference](/docs/configuration) -- understand every option in `augure.json5`
 - [Architecture](/docs/architecture) -- how the agent works internally
 - [Memory System](/docs/memory) -- how Augure learns and remembers
+- [Skills System](/docs/skills) -- self-generated skills with auto-healing
 - [Scheduler](/docs/scheduler) -- cron jobs and proactive heartbeat
 - [Tools](/docs/tools) -- native tools available to the agent
 - [Deployment](/docs/deployment) -- production setup and security

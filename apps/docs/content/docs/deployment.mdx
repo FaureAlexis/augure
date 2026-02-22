@@ -81,8 +81,9 @@ Augure is secure by default with zero configuration:
 | **No inbound ports** | Telegram and WhatsApp use outbound polling. No firewall rules needed. |
 | **Secrets in env only** | Config supports `${ENV_VAR}` interpolation. Secrets never stored in config files. |
 | **Sandboxed execution** | The `security.sandboxOnly` flag (default: `true`) requires all code execution in Docker containers. |
+| **Trust levels** | `sandboxed` containers have network disabled. `trusted` containers get host network (for code agents that need API access). Pool never reuses containers across trust levels. |
 | **Scoped volumes** | Sandboxed containers only see their `/workspace`, not the host filesystem. |
-| **Container limits** | Default timeout of 300 seconds, 512 MB memory, 1 CPU core. |
+| **Container limits** | Default timeout of 300s, 512 MB memory, 1 CPU core, PID limit of 512 (fork-bomb protection). |
 
 ### Attack Surface
 

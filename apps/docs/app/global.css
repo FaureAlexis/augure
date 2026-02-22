@@ -1,3 +1,42 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
+
+/* ── Augure "Ambre Oracle" theme ── */
+
+.dark {
+  --color-fd-background: #0c0a09;
+  --color-fd-foreground: #fafaf9;
+  --color-fd-muted: #1c1917;
+  --color-fd-muted-foreground: #a8a29e;
+  --color-fd-popover: #1c1917;
+  --color-fd-popover-foreground: #fafaf9;
+  --color-fd-card: #1c1917;
+  --color-fd-card-foreground: #fafaf9;
+  --color-fd-border: #44403c;
+  --color-fd-primary: #f59e0b;
+  --color-fd-primary-foreground: #0c0a09;
+  --color-fd-secondary: #292524;
+  --color-fd-secondary-foreground: #fafaf9;
+  --color-fd-accent: rgba(41, 37, 36, 0.6);
+  --color-fd-accent-foreground: #fafaf9;
+  --color-fd-ring: #f59e0b;
+  --color-fd-overlay: rgba(0, 0, 0, 0.4);
+}
+
+.dark #nd-sidebar {
+  --color-fd-muted: #151311;
+  --color-fd-secondary: #1c1917;
+  --color-fd-muted-foreground: #a8a29e;
+}
+
+@theme {
+  --color-amber-accent: #f59e0b;
+  --color-amber-dark: #d97706;
+  --color-amber-soft: rgba(245, 158, 11, 0.12);
+  --color-violet-accent: #a78bfa;
+
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+}

@@ -77,10 +77,16 @@ If a referenced variable is missing, the agent refuses to start. Keep all secret
 
   sandbox: {
     runtime: "docker",
+    image: "augure-sandbox:latest",  // optional, Docker image for containers
     defaults: {
-      timeout: 300,
+      timeout: 300,        // seconds
       memoryLimit: "512m",
       cpuLimit: "1.0",
+    },
+    codeAgent: {           // optional, enables the "opencode" tool
+      command: "claude-code",
+      args: ["--no-interactive"],
+      env: { ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}" },
     },
   },
 
@@ -100,6 +106,16 @@ If a referenced variable is missing, the agent refuses to start. Keep all secret
           },
         },
       },
+    },
+  },
+
+  skills: {
+    path: "./skills",
+    maxFailures: 3,
+    autoSuggest: true,
+    hub: {
+      repo: "FaureAlexis/augure-skills",
+      branch: "main",
     },
   },
 
@@ -227,14 +243,44 @@ Each `HttpPreset`:
 
 ### sandbox
 
-Container execution defaults.
+Container execution configuration. The pool creates Docker containers on demand and caches idle ones, keyed by trust level (`sandboxed` = no network, `trusted` = host network).
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `runtime` | `"docker"` | Yes | Container runtime (only Docker supported) |
+| `image` | `string` | No | Docker image to use (default: `"augure-sandbox:latest"`) |
 | `defaults.timeout` | `number` | Yes | Default execution timeout in seconds |
 | `defaults.memoryLimit` | `string` | Yes | Container memory limit (e.g. `"512m"`) |
 | `defaults.cpuLimit` | `string` | Yes | Container CPU limit (e.g. `"1.0"`) |
+| `codeAgent` | `object` | No | Configuration for the `opencode` tool (see below) |
+
+#### sandbox.codeAgent
+
+When configured, enables the `opencode` tool which runs a coding agent (claude-code, opencode, codex) inside a Docker container.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `command` | `string` | Yes | CLI command to invoke (e.g. `"claude-code"`) |
+| `args` | `string[]` | No | Additional arguments (e.g. `["--no-interactive"]`) |
+| `env` | `Record<string, string>` | No | Environment variables passed to the exec (e.g. API keys) |
+
+### skills
+
+Self-generated skill system configuration. When present, the agent can create, run, and auto-heal skills. Requires the `sandbox` section to be configured (skills execute in Docker containers).
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `path` | `string` | Yes | `"./skills"` | Base directory for skill files |
+| `maxFailures` | `number` | Yes | `3` | Consecutive failures before a skill is paused |
+| `autoSuggest` | `boolean` | Yes | `true` | Allow the agent to suggest creating new skills |
+| `hub` | `object` | No | -- | Curated skills hub configuration |
+
+#### skills.hub
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `repo` | `string` | Yes | -- | GitHub repository in `owner/repo` format |
+| `branch` | `string` | No | `"main"` | Branch to fetch skills from |
 
 ### security
 

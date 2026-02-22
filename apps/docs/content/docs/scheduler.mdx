@@ -165,3 +165,9 @@ Supported units:
 | Hours | `h` | 3,600,000 |
 
 This is used to parse the `scheduler.heartbeatInterval` config value.
+
+## Skills Integration
+
+When the [skills system](/docs/skills) is configured, the `SkillSchedulerBridge` automatically syncs cron-triggered skills with the scheduler. Skills with `trigger.type: "cron"` are registered as scheduler jobs with the ID format `skill:<skill-id>` and the prompt format `[skill:run:<skill-id>]`.
+
+The bridge runs `syncAll()` at startup to register active cron skills and remove orphaned jobs. When a skill is created, paused, or deleted, the bridge updates the scheduler accordingly.

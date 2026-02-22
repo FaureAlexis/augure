@@ -1,0 +1,191 @@
+---
+title: Skills System
+description: Self-generated skills -- how Augure creates, tests, deploys, and auto-heals reusable capabilities
+---
+
+The skills system is the core of Augure's LEARN primitive. It enables the agent to create reusable capabilities as TypeScript code, test them in sandboxed Docker containers, deploy them on cron schedules, and automatically repair them when they break.
+
+## Skill Format
+
+Each skill lives in its own directory under the configured `skills.path`:
+
+```
+skills/
+  skills-index.json              # Fast lookup index
+  daily-digest/
+    skill.md                     # YAML frontmatter + markdown description
+    skill.ts                     # Generated TypeScript code
+    skill.test.ts                # Auto-generated tests (node:test)
+    state.json                   # Per-skill persistent state
+    runs/                        # Execution logs (JSON)
+  health-check/
+    skill.md / skill.ts / ...
+```
+
+### skill.md
+
+The `skill.md` file contains YAML frontmatter (metadata) and a markdown body (description):
+
+```yaml
+---
+id: daily-digest
+name: Daily Digest
+version: 3
+status: active
+trigger:
+  type: cron
+  schedule: "0 8 * * *"
+  channel: telegram
+sandbox: true
+tools: []
+tags:
+  - reporting
+  - daily
+---
+
+# Daily Digest
+
+## Goal
+Summarize recent memory observations into a concise daily report.
+
+## Strategy
+1. Read memory observations from the last 24 hours
+2. Group by topic
+3. Generate a summary
+```
+
+### skill.ts
+
+The generated TypeScript code exports an async function that receives a `SkillContext`:
+
+```typescript
+import type { SkillContext } from "@augure/types";
+
+export default async function execute(ctx: SkillContext): Promise<{ output: string }> {
+  const files = await ctx.memory.list("observations");
+  // ... process and summarize ...
+  return { output: summary };
+}
+```
+
+### skill.test.ts
+
+Tests use `node:test` and `node:assert` (built-in Node.js, no npm install required in the sandbox):
+
+```typescript
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+describe("daily-digest", () => {
+  it("should produce a summary", async () => {
+    assert.ok(true);
+  });
+});
+```
+
+## Lifecycle
+
+```
+TRIGGER (user request or agent suggestion)
+    |
+    v
+GENERATE (LLM creates skill.md + skill.ts + skill.test.ts)
+    |
+    v
+TEST (run tests in sandboxed Docker container)
+    |
+    v
+DEPLOY (save to disk, register cron if applicable)
+    |
+    v
+EXECUTE (run skill.ts in sandbox on schedule or manually)
+    |
+    v
+SELF-HEAL (on failure: LLM regenerates code, re-tests, pauses after N failures)
+```
+
+## SkillContext API
+
+Inside the Docker container, each skill receives a `SkillContext` object:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `exec(command, opts?)` | `(string, ExecOptions?) => Promise<ExecResult>` | Run a shell command in the container |
+| `memory.read(path)` | `(string) => Promise<string>` | Read a memory file (read-only mount) |
+| `memory.list(dir?)` | `(string?) => Promise<string[]>` | List files in a memory directory |
+| `state.get(key)` | `(string) => Promise<string \| undefined>` | Read from per-skill persistent state |
+| `state.set(key, value)` | `(string, string) => Promise<void>` | Write to per-skill persistent state |
+| `state.delete(key)` | `(string) => Promise<void>` | Delete from per-skill persistent state |
+| `previousRun` | `SkillRunResult \| null` | The result of the last execution |
+| `config` | `SkillMeta` | The skill's metadata |
+
+## Self-Healing
+
+When a skill fails, the healer tracks consecutive failures in the skill's `state.json`:
+
+1. **1st-2nd failure**: The LLM regenerates the code based on the error, tests the fix in a sandbox, and deploys it if tests pass (bumps version).
+2. **3rd failure** (configurable via `maxFailures`): The skill is paused automatically. The agent can notify the user.
+
+The counter resets to zero on any successful execution.
+
+## Built-in Skills
+
+Two skills are installed automatically on first startup:
+
+| Skill | Schedule | Description |
+|-------|----------|-------------|
+| `health-check` | Daily at 06:00 | Checks the status of all skills, reports broken or paused ones |
+| `daily-digest` | Daily at 08:00 | Reads recent memory observations and generates a summary |
+
+Built-in skills are idempotent -- they won't be reinstalled if they already exist.
+
+## Skills Hub
+
+When `skills.hub` is configured, the agent can install curated skills from a GitHub repository via the `install_skill` tool. The hub uses a simple structure:
+
+```
+manifest.json              # List of available skills
+skills/
+  some-skill/
+    skill.md
+    skill.ts
+    skill.test.ts
+```
+
+Skills are fetched via raw HTTP from `raw.githubusercontent.com` (no git clone). All hub-downloaded skills are forced to `sandbox: true` for security.
+
+## Agent Tools
+
+The skills system registers 5 tools for the LLM agent:
+
+| Tool | Description |
+|------|-------------|
+| `create_skill` | Generate a new skill from a natural language description |
+| `list_skills` | List all skills with status and trigger info |
+| `run_skill` | Manually trigger a skill execution by ID |
+| `manage_skill` | Pause, resume, or delete a skill |
+| `install_skill` | Install a curated skill from the hub |
+
+## Scheduler Integration
+
+Skills with `trigger.type: "cron"` are automatically registered with the [scheduler](/docs/scheduler) via the `SkillSchedulerBridge`. The bridge syncs at startup and manages the mapping between skills and cron jobs.
+
+Job IDs follow the format `skill:<skill-id>`, and the prompt sent to the agent is `[skill:run:<skill-id>]`.
+
+## Module Architecture
+
+```
+packages/skills/src/
+  parser.ts            # Parse/serialize skill.md (gray-matter)
+  state.ts             # FileSkillState (JSON key-value per skill)
+  llm-parser.ts        # Extract code blocks from LLM responses
+  manager.ts           # CRUD + index management + run logging
+  generator.ts         # LLM-based skill generation
+  runner.ts            # Execute skill.ts in Docker sandbox
+  tester.ts            # Execute skill.test.ts in Docker sandbox
+  healer.ts            # Detect failures + auto-patch + re-test
+  tools.ts             # 5 NativeTool for the agent
+  scheduler-bridge.ts  # Sync cron skills with CronScheduler
+  hub.ts               # Install from GitHub repository
+  builtins/index.ts    # Built-in health-check + daily-digest
+```

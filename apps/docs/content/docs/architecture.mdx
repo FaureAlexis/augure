@@ -14,7 +14,7 @@ Augure is built on 6 core primitives -- the irreducible building blocks of the a
 | **REMEMBER** | `@augure/memory` | Markdown files on disk. Ingests facts from conversations. Retrieves relevant context with token budgeting. |
 | **COMMUNICATE** | `@augure/channels` | Telegram (implemented). Bidirectional -- receives messages and pushes proactive reports. |
 | **WATCH** | `@augure/scheduler` | Cron jobs, heartbeat monitoring. Triggers actions on schedule or on conditions. |
-| **LEARN** | `@augure/memory` | Observational learning from conversations. The ingester extracts facts automatically. |
+| **LEARN** | `@augure/memory` + `@augure/skills` | Observational learning from conversations, plus self-generated skills that the agent creates, tests, deploys, and auto-heals. |
 
 ## Package Structure
 
@@ -26,10 +26,10 @@ The codebase is a pnpm monorepo with Turborepo for task orchestration:
 | `@augure/core` | `packages/core` | Agent loop, LLM client, context assembly, config loader |
 | `@augure/memory` | `packages/memory` | FileMemoryStore, MemoryIngester, MemoryRetriever |
 | `@augure/scheduler` | `packages/scheduler` | CronScheduler, JobStore, Heartbeat, parseInterval |
-| `@augure/tools` | `packages/tools` | ToolRegistry + native tools (memory, schedule, web_search, http) |
+| `@augure/tools` | `packages/tools` | ToolRegistry + native tools (memory, schedule, web_search, http, sandbox_exec, opencode) |
 | `@augure/channels` | `packages/channels` | Channel interface + Telegram implementation |
-| `@augure/sandbox` | `packages/sandbox` | Container pool management (planned) |
-| `@augure/skills` | `packages/skills` | Self-generated skill system (planned) |
+| `@augure/sandbox` | `packages/sandbox` | Docker container pool with on-demand creation, idle caching, and trust-level isolation |
+| `@augure/skills` | `packages/skills` | Self-generated skill system: LLM generation, sandbox execution, auto-testing, self-healing, scheduler bridge, curated hub |
 
 ## Execution Flow
 
@@ -64,7 +64,7 @@ The agent loops up to `maxToolLoops` times (default: 10) to allow multi-step too
 
 ### Tool Execution
 
-All tools run in-process via the `ToolRegistry`. The LLM receives tool schemas as function definitions and returns structured tool calls. The registry dispatches to the correct tool:
+All tools run in-process via the `ToolRegistry`. Two tools (`sandbox_exec` and `opencode`) acquire Docker containers from the pool for isolated execution. The LLM receives tool schemas as function definitions and returns structured tool calls. The registry dispatches to the correct tool:
 
 ```typescript
 for (const toolCall of response.toolCalls) {
