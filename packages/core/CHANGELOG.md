@@ -1,5 +1,17 @@
 # @augure/core
 
+## 0.5.0
+
+### Minor Changes
+
+- 33060dd: Add GitHub tool with 17 actions (issues, PRs, repos, releases, search) via Octokit
+
+### Patch Changes
+
+- Updated dependencies [33060dd]
+  - @augure/tools@0.2.0
+  - @augure/code-mode@0.1.2
+
 ## 0.4.0
 
 ### Minor Changes
