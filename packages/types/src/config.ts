@@ -128,6 +128,8 @@ export interface UpdatesConfig {
 
 export interface CodeModeConfig {
   runtime: "vm" | "docker" | "auto";
+  /** Execution timeout in seconds */
   timeout: number;
+  /** Memory limit in megabytes (VM executor only) */
   memoryLimit: number;
 }

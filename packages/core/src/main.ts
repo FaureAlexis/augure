@@ -245,23 +245,26 @@ export async function startAgent(
   let codeModeExecutor: CodeModeExecutor | undefined;
   if (config.codeMode) {
     const cmConfig = config.codeMode;
-    const vmExec = new VmExecutor(tools, {
-      timeout: cmConfig.timeout * 1000,
-      memoryLimit: cmConfig.memoryLimit,
-    });
 
     if (cmConfig.runtime === "vm") {
-      codeModeExecutor = vmExec;
+      codeModeExecutor = new VmExecutor(tools, {
+        timeout: cmConfig.timeout * 1000, // VmExecutor expects ms
+        memoryLimit: cmConfig.memoryLimit,
+      });
     } else if (cmConfig.runtime === "docker") {
       codeModeExecutor = new DockerExecutor({
         registry: tools,
         pool,
-        timeout: cmConfig.timeout,
+        timeout: cmConfig.timeout, // DockerExecutor expects seconds
         memoryLimit: config.sandbox.defaults.memoryLimit,
         cpuLimit: config.sandbox.defaults.cpuLimit,
       });
     } else {
       // "auto" — VM with Docker fallback
+      const vmExec = new VmExecutor(tools, {
+        timeout: cmConfig.timeout * 1000,
+        memoryLimit: cmConfig.memoryLimit,
+      });
       const dockerExec = new DockerExecutor({
         registry: tools,
         pool,

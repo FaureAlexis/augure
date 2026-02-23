@@ -2,6 +2,7 @@ import type { LLMClient, Message, IncomingMessage, Logger } from "@augure/types"
 import { noopLogger } from "@augure/types";
 import type { ToolRegistry } from "@augure/tools";
 import type { MemoryIngester, MemoryRetriever } from "@augure/memory";
+import { createCodeModeTool } from "@augure/code-mode";
 import { assembleContext } from "./context.js";
 import { summarize } from "./audit.js";
 import type { AuditLogger } from "./audit.js";
@@ -84,8 +85,11 @@ export class Agent {
     let effectiveSchemas = toolSchemas;
     let codeModeTool: import("@augure/types").NativeTool | undefined;
 
+    // Code Mode: when enabled, the LLM sees a single execute_code tool instead of
+    // individual tools. The LLM writes TypeScript that calls typed APIs (auto-generated
+    // from the ToolRegistry) and executes in a sandbox. Individual tools remain accessible
+    // inside the code via the `api.*` proxy.
     if (this.config.codeModeExecutor) {
-      const { createCodeModeTool } = await import("@augure/code-mode");
       codeModeTool = createCodeModeTool(this.config.tools, this.config.codeModeExecutor);
       effectiveSchemas = [{
         type: "function" as const,
@@ -158,6 +162,7 @@ export class Agent {
 
         let result: import("@augure/types").ToolResult;
         if (codeModeTool && toolCall.name === "execute_code") {
+          // execute_code doesn't use ToolContext — it routes calls internally via the bridge
           result = await codeModeTool.execute(toolCall.arguments, {} as import("@augure/types").ToolContext);
         } else {
           result = await this.config.tools.execute(
