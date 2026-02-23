@@ -478,4 +478,108 @@ describe("githubTool", () => {
       expect(result.output).toContain("https://github.com/acme/app/releases/tag/v2.0.0");
     });
   });
+
+  describe("search actions", () => {
+    const ctx = makeCtx("ghp_test123");
+
+    function mockOk(data: unknown) {
+      mockFetch.mockResolvedValue({
+        status: 200,
+        url: "https://api.github.com/",
+        headers: new Headers({ "content-type": "application/json" }),
+        text: () => Promise.resolve(JSON.stringify(data)),
+      });
+    }
+
+    it("search_issues returns results table", async () => {
+      mockOk({
+        total_count: 2,
+        incomplete_results: false,
+        items: [
+          {
+            number: 1,
+            title: "Bug in login",
+            state: "open",
+            repository_url: "https://api.github.com/repos/acme/app",
+            html_url: "https://github.com/acme/app/issues/1",
+          },
+          {
+            number: 5,
+            title: "Fix auth",
+            state: "closed",
+            repository_url: "https://api.github.com/repos/acme/api",
+            html_url: "https://github.com/acme/api/issues/5",
+          },
+        ],
+      });
+      const result = await githubTool.execute(
+        { action: "search_issues", query: "login bug" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("Found 2 results");
+      expect(result.output).toContain("Bug in login");
+      expect(result.output).toContain("acme/app");
+      expect(result.output).toContain("acme/api");
+    });
+
+    it("search_issues returns message when no results", async () => {
+      mockOk({ total_count: 0, incomplete_results: false, items: [] });
+      const result = await githubTool.execute(
+        { action: "search_issues", query: "nonexistent" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("No results found");
+    });
+
+    it("search_code returns results table", async () => {
+      mockOk({
+        total_count: 1,
+        incomplete_results: false,
+        items: [
+          {
+            name: "auth.ts",
+            path: "src/auth.ts",
+            repository: { full_name: "acme/app" },
+            html_url: "https://github.com/acme/app/blob/main/src/auth.ts",
+          },
+        ],
+      });
+      const result = await githubTool.execute(
+        { action: "search_code", query: "authenticate" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("Found 1 results");
+      expect(result.output).toContain("auth.ts");
+      expect(result.output).toContain("src/auth.ts");
+      expect(result.output).toContain("acme/app");
+    });
+
+    it("search_repos returns results table", async () => {
+      mockOk({
+        total_count: 1,
+        incomplete_results: false,
+        items: [
+          {
+            full_name: "acme/app",
+            description: "Main app",
+            stargazers_count: 100,
+            language: "TypeScript",
+            html_url: "https://github.com/acme/app",
+          },
+        ],
+      });
+      const result = await githubTool.execute(
+        { action: "search_repos", query: "acme app" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("Found 1 results");
+      expect(result.output).toContain("acme/app");
+      expect(result.output).toContain("Main app");
+      expect(result.output).toContain("100");
+    });
+  });
 });

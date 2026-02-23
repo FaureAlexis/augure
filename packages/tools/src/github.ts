@@ -448,6 +448,101 @@ actions.create_release = async (client, params) => {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Search actions                                                    */
+/* ------------------------------------------------------------------ */
+
+interface SearchIssueItem {
+  number: number;
+  title: string;
+  state: string;
+  repository_url: string;
+  html_url: string;
+}
+
+interface SearchCodeItem {
+  name: string;
+  path: string;
+  repository: { full_name: string };
+  html_url: string;
+}
+
+interface SearchRepoItem {
+  full_name: string;
+  description: string | null;
+  stargazers_count: number;
+  language: string | null;
+  html_url: string;
+}
+
+actions.search_issues = async (client, params) => {
+  const { query, per_page } = params as {
+    query: string;
+    per_page?: number;
+  };
+  const { data } = await client.search.issuesAndPullRequests({
+    q: query,
+    per_page: per_page ?? 20,
+  });
+  if (data.total_count === 0) {
+    return { success: true, output: "No results found." };
+  }
+  const header = "| # | Title | State | Repo |\n|---|-------|-------|------|";
+  const rows = (data.items as unknown as SearchIssueItem[]).map((i) => {
+    const repo = i.repository_url.replace("https://api.github.com/repos/", "");
+    return `| #${i.number} | ${i.title} | ${i.state} | ${repo} |`;
+  });
+  return {
+    success: true,
+    output: truncate(`Found ${data.total_count} results:\n${header}\n${rows.join("\n")}`),
+  };
+};
+
+actions.search_code = async (client, params) => {
+  const { query, per_page } = params as {
+    query: string;
+    per_page?: number;
+  };
+  const { data } = await client.search.code({
+    q: query,
+    per_page: per_page ?? 20,
+  });
+  if (data.total_count === 0) {
+    return { success: true, output: "No results found." };
+  }
+  const header = "| File | Path | Repo |\n|------|------|------|";
+  const rows = (data.items as unknown as SearchCodeItem[]).map(
+    (i) => `| ${i.name} | ${i.path} | ${i.repository.full_name} |`,
+  );
+  return {
+    success: true,
+    output: truncate(`Found ${data.total_count} results:\n${header}\n${rows.join("\n")}`),
+  };
+};
+
+actions.search_repos = async (client, params) => {
+  const { query, per_page } = params as {
+    query: string;
+    per_page?: number;
+  };
+  const { data } = await client.search.repos({
+    q: query,
+    per_page: per_page ?? 20,
+  });
+  if (data.total_count === 0) {
+    return { success: true, output: "No results found." };
+  }
+  const header = "| Repository | Description | Stars | Language |\n|------------|-------------|-------|----------|";
+  const rows = (data.items as unknown as SearchRepoItem[]).map(
+    (i) =>
+      `| [${i.full_name}](${i.html_url}) | ${i.description ?? ""} | ${i.stargazers_count} | ${i.language ?? ""} |`,
+  );
+  return {
+    success: true,
+    output: truncate(`Found ${data.total_count} results:\n${header}\n${rows.join("\n")}`),
+  };
+};
+
+/* ------------------------------------------------------------------ */
 /*  Tool definition                                                   */
 /* ------------------------------------------------------------------ */
 
