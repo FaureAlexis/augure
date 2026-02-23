@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@augure/channels": "workspace:*",
+    "@augure/code-mode": "workspace:*",
     "@augure/memory": "workspace:*",
     "@augure/sandbox": "workspace:*",
     "@augure/scheduler": "workspace:*",

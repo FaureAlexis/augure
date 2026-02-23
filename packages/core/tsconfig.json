@@ -12,6 +12,7 @@
     { "path": "../channels" },
     { "path": "../scheduler" },
     { "path": "../sandbox" },
-    { "path": "../skills" }
+    { "path": "../skills" },
+    { "path": "../code-mode" }
   ]
 }

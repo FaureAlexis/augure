@@ -21,6 +21,7 @@ export interface AgentConfig {
   guard?: ContextGuard;
   modelName?: string;
   logger?: Logger;
+  codeModeExecutor?: import("@augure/code-mode").CodeModeExecutor;
 }
 
 export class Agent {
@@ -80,6 +81,22 @@ export class Agent {
 
     const toolSchemas = this.config.tools.toFunctionSchemas();
 
+    let effectiveSchemas = toolSchemas;
+    let codeModeTool: import("@augure/types").NativeTool | undefined;
+
+    if (this.config.codeModeExecutor) {
+      const { createCodeModeTool } = await import("@augure/code-mode");
+      codeModeTool = createCodeModeTool(this.config.tools, this.config.codeModeExecutor);
+      effectiveSchemas = [{
+        type: "function" as const,
+        function: {
+          name: codeModeTool.name,
+          description: codeModeTool.description,
+          parameters: codeModeTool.parameters,
+        },
+      }];
+    }
+
     while (loopCount < maxLoops) {
       const messages = assembleContext({
         systemPrompt: this.config.systemPrompt,
@@ -89,7 +106,7 @@ export class Agent {
       });
 
       this.log.debug(`LLM call #${loopCount + 1} (${messages.length} messages)`);
-      const response = await this.config.llm.chat(messages, toolSchemas);
+      const response = await this.config.llm.chat(messages, effectiveSchemas);
 
       if (response.toolCalls.length === 0) {
         history.push({
@@ -138,10 +155,16 @@ export class Agent {
       for (const toolCall of response.toolCalls) {
         const toolStart = Date.now();
         this.log.debug(`Tool: ${toolCall.name}`);
-        const result = await this.config.tools.execute(
-          toolCall.name,
-          toolCall.arguments,
-        );
+
+        let result: import("@augure/types").ToolResult;
+        if (codeModeTool && toolCall.name === "execute_code") {
+          result = await codeModeTool.execute(toolCall.arguments, {} as import("@augure/types").ToolContext);
+        } else {
+          result = await this.config.tools.execute(
+            toolCall.name,
+            toolCall.arguments,
+          );
+        }
         this.log.debug(`Tool ${toolCall.name}: ${result.success ? "ok" : "fail"} (${Date.now() - toolStart}ms)`);
         history.push({
           role: "tool",

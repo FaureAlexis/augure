@@ -160,6 +160,13 @@ const AppConfigSchema = z.object({
         .optional(),
     })
     .optional(),
+  codeMode: z
+    .object({
+      runtime: z.enum(["vm", "docker", "auto"]).default("auto"),
+      timeout: z.number().int().positive().default(30),
+      memoryLimit: z.number().int().positive().default(128),
+    })
+    .optional(),
 });
 
 function interpolateEnvVars(raw: string): string {

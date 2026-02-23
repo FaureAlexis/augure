@@ -45,6 +45,12 @@ import {
   createSkillTools,
   installBuiltins,
 } from "@augure/skills";
+import {
+  VmExecutor,
+  DockerExecutor,
+  AutoExecutor,
+} from "@augure/code-mode";
+import type { CodeModeExecutor } from "@augure/code-mode";
 import { resolve } from "node:path";
 import { createRequire } from "node:module";
 import { VersionChecker } from "./version-checker.js";
@@ -235,6 +241,40 @@ export async function startAgent(
 
   tools.setContext({ config, memory, scheduler, pool });
 
+  // Code Mode setup
+  let codeModeExecutor: CodeModeExecutor | undefined;
+  if (config.codeMode) {
+    const cmConfig = config.codeMode;
+    const vmExec = new VmExecutor(tools, {
+      timeout: cmConfig.timeout * 1000,
+      memoryLimit: cmConfig.memoryLimit,
+    });
+
+    if (cmConfig.runtime === "vm") {
+      codeModeExecutor = vmExec;
+    } else if (cmConfig.runtime === "docker") {
+      codeModeExecutor = new DockerExecutor({
+        registry: tools,
+        pool,
+        timeout: cmConfig.timeout,
+        memoryLimit: config.sandbox.defaults.memoryLimit,
+        cpuLimit: config.sandbox.defaults.cpuLimit,
+      });
+    } else {
+      // "auto" — VM with Docker fallback
+      const dockerExec = new DockerExecutor({
+        registry: tools,
+        pool,
+        timeout: cmConfig.timeout,
+        memoryLimit: config.sandbox.defaults.memoryLimit,
+        cpuLimit: config.sandbox.defaults.cpuLimit,
+      });
+      codeModeExecutor = new AutoExecutor(vmExec, dockerExec);
+    }
+
+    log.info(`Code Mode enabled: runtime=${cmConfig.runtime}, timeout=${cmConfig.timeout}s`);
+  }
+
   // Audit logger
   const auditConfig = config.audit ?? { path: "./logs", enabled: true };
   const auditPath = resolve(configPath, "..", auditConfig.path);
@@ -298,6 +338,7 @@ export async function startAgent(
     guard,
     modelName: config.llm.default.model,
     logger: log.child("agent"),
+    codeModeExecutor,
   });
 
   if (config.channels.telegram?.enabled) {

@@ -125,3 +125,9 @@ export interface UpdatesConfig {
     notifyChannel: string;
   };
 }
+
+export interface CodeModeConfig {
+  runtime: "vm" | "docker" | "auto";
+  timeout: number;
+  memoryLimit: number;
+}
