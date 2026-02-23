@@ -339,4 +339,143 @@ describe("githubTool", () => {
       expect(result.output).toContain("abc123");
     });
   });
+
+  describe("repos + releases actions", () => {
+    const ctx = makeCtx("ghp_test123");
+
+    function mockOk(data: unknown) {
+      mockFetch.mockResolvedValue({
+        status: 200,
+        url: "https://api.github.com/",
+        headers: new Headers({ "content-type": "application/json" }),
+        text: () => Promise.resolve(JSON.stringify(data)),
+      });
+    }
+
+    it("list_repos returns markdown table", async () => {
+      mockOk([
+        {
+          full_name: "acme/app",
+          description: "Main app",
+          stargazers_count: 42,
+          language: "TypeScript",
+          private: false,
+        },
+      ]);
+      const result = await githubTool.execute(
+        { action: "list_repos", owner: "acme" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("acme/app");
+      expect(result.output).toContain("Main app");
+      expect(result.output).toContain("42");
+    });
+
+    it("list_repos without owner lists authenticated user repos", async () => {
+      mockOk([
+        {
+          full_name: "me/my-repo",
+          description: "My repo",
+          stargazers_count: 1,
+          language: "JavaScript",
+          private: true,
+        },
+      ]);
+      const result = await githubTool.execute(
+        { action: "list_repos" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("me/my-repo");
+    });
+
+    it("list_repos returns message when empty", async () => {
+      mockOk([]);
+      const result = await githubTool.execute(
+        { action: "list_repos", owner: "acme" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("No repositories found");
+    });
+
+    it("get_repo returns detailed markdown", async () => {
+      mockOk({
+        full_name: "acme/app",
+        description: "Main application",
+        stargazers_count: 42,
+        forks_count: 5,
+        open_issues_count: 10,
+        language: "TypeScript",
+        default_branch: "main",
+        private: false,
+        topics: ["web", "api"],
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2025-01-01T00:00:00Z",
+        html_url: "https://github.com/acme/app",
+      });
+      const result = await githubTool.execute(
+        { action: "get_repo", owner: "acme", repo: "app" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("# acme/app");
+      expect(result.output).toContain("Main application");
+      expect(result.output).toContain("**Stars:** 42");
+      expect(result.output).toContain("web, api");
+      expect(result.output).toContain("https://github.com/acme/app");
+    });
+
+    it("list_releases returns markdown table", async () => {
+      mockOk([
+        {
+          tag_name: "v1.0.0",
+          name: "First release",
+          draft: false,
+          prerelease: false,
+          published_at: "2025-01-01T00:00:00Z",
+          html_url: "https://github.com/acme/app/releases/tag/v1.0.0",
+        },
+      ]);
+      const result = await githubTool.execute(
+        { action: "list_releases", owner: "acme", repo: "app" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("v1.0.0");
+      expect(result.output).toContain("First release");
+    });
+
+    it("list_releases returns message when empty", async () => {
+      mockOk([]);
+      const result = await githubTool.execute(
+        { action: "list_releases", owner: "acme", repo: "app" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("No releases found");
+    });
+
+    it("create_release returns confirmation with URL", async () => {
+      mockOk({
+        tag_name: "v2.0.0",
+        html_url: "https://github.com/acme/app/releases/tag/v2.0.0",
+      });
+      const result = await githubTool.execute(
+        {
+          action: "create_release",
+          owner: "acme",
+          repo: "app",
+          tag_name: "v2.0.0",
+          title: "Version 2",
+          body: "Big update",
+        },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("Created release v2.0.0");
+      expect(result.output).toContain("https://github.com/acme/app/releases/tag/v2.0.0");
+    });
+  });
 });

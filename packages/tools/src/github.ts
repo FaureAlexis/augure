@@ -332,6 +332,122 @@ actions.merge_pr = async (client, params) => {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Repos + Releases actions                                          */
+/* ------------------------------------------------------------------ */
+
+interface RepoRow {
+  full_name: string;
+  description: string | null;
+  stargazers_count: number;
+  language: string | null;
+  private: boolean;
+}
+
+interface RepoDetail extends RepoRow {
+  html_url: string;
+  default_branch: string;
+  open_issues_count: number;
+  forks_count: number;
+  created_at: string | null;
+  updated_at: string | null;
+  topics: string[];
+}
+
+interface ReleaseRow {
+  tag_name: string;
+  name: string | null;
+  draft: boolean;
+  prerelease: boolean;
+  published_at: string | null;
+  html_url: string;
+}
+
+actions.list_repos = async (client, params) => {
+  const { owner, per_page } = params as {
+    owner?: string;
+    per_page?: number;
+  };
+  const { data } = owner
+    ? await client.repos.listForUser({ username: owner, per_page: per_page ?? 30 })
+    : await client.repos.listForAuthenticatedUser({ per_page: per_page ?? 30 });
+  if (data.length === 0) {
+    return { success: true, output: "No repositories found." };
+  }
+  const header = "| Repository | Description | Stars | Language | Private |\n|------------|-------------|-------|----------|---------|\n";
+  const rows = (data as unknown as RepoRow[]).map(
+    (r) =>
+      `| ${r.full_name} | ${r.description ?? ""} | ${r.stargazers_count} | ${r.language ?? ""} | ${r.private} |`,
+  );
+  return { success: true, output: truncate(`${header}${rows.join("\n")}`) };
+};
+
+actions.get_repo = async (client, params) => {
+  const { owner, repo } = params as { owner: string; repo: string };
+  const { data } = await client.repos.get({ owner, repo });
+  const r = data as unknown as RepoDetail;
+  const topics = r.topics.length > 0 ? r.topics.join(", ") : "none";
+  const out = [
+    `# ${r.full_name}`,
+    r.description ?? "_No description_",
+    "",
+    `**Stars:** ${r.stargazers_count}  **Forks:** ${r.forks_count}  **Open issues:** ${r.open_issues_count}`,
+    `**Language:** ${r.language ?? "N/A"}  **Default branch:** ${r.default_branch}  **Private:** ${r.private}`,
+    `**Topics:** ${topics}`,
+    `**Created:** ${r.created_at}  **Updated:** ${r.updated_at}`,
+    `**URL:** ${r.html_url}`,
+  ].join("\n");
+  return { success: true, output: truncate(out) };
+};
+
+actions.list_releases = async (client, params) => {
+  const { owner, repo, per_page } = params as {
+    owner: string;
+    repo: string;
+    per_page?: number;
+  };
+  const { data } = await client.repos.listReleases({
+    owner,
+    repo,
+    per_page: per_page ?? 10,
+  });
+  if (data.length === 0) {
+    return { success: true, output: "No releases found." };
+  }
+  const header = "| Tag | Name | Draft | Prerelease | Published |\n|-----|------|-------|------------|-----------|";
+  const rows = (data as unknown as ReleaseRow[]).map(
+    (r) =>
+      `| ${r.tag_name} | ${r.name ?? ""} | ${r.draft} | ${r.prerelease} | ${r.published_at ?? ""} |`,
+  );
+  return { success: true, output: truncate(`${header}\n${rows.join("\n")}`) };
+};
+
+actions.create_release = async (client, params) => {
+  const { owner, repo, tag_name, title, body, target_commitish, draft } =
+    params as {
+      owner: string;
+      repo: string;
+      tag_name: string;
+      title?: string;
+      body?: string;
+      target_commitish?: string;
+      draft?: boolean;
+    };
+  const { data } = await client.repos.createRelease({
+    owner,
+    repo,
+    tag_name,
+    name: title,
+    body,
+    target_commitish,
+    draft,
+  });
+  return {
+    success: true,
+    output: `Created release ${data.tag_name}: ${data.html_url}`,
+  };
+};
+
+/* ------------------------------------------------------------------ */
 /*  Tool definition                                                   */
 /* ------------------------------------------------------------------ */
 
