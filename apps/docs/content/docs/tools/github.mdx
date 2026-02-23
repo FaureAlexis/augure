@@ -1,0 +1,145 @@
+---
+title: GitHub Tool
+description: Interact with GitHub issues, pull requests, repos, releases, and search
+---
+
+The `github` tool gives the agent full CRUD access to GitHub via the REST API. It uses a single tool with an `action` dispatch pattern -- one tool, 17 actions across 5 groups.
+
+## Configuration
+
+Add `tools.github` to your `augure.json5`:
+
+```json5
+{
+  tools: {
+    github: {
+      token: "${GITHUB_TOKEN}",
+    },
+  },
+}
+```
+
+The token needs appropriate scopes for the actions you want to use (typically `repo` for private repos, `public_repo` for public ones).
+
+## Actions
+
+### Issues
+
+| Action | Required Params | Description |
+|--------|----------------|-------------|
+| `list_issues` | `owner`, `repo` | List issues (optional: `state`, `labels`, `per_page`) |
+| `get_issue` | `owner`, `repo`, `issue_number` | Get a single issue with full details |
+| `create_issue` | `owner`, `repo`, `title` | Create an issue (optional: `body`, `labels`) |
+| `update_issue` | `owner`, `repo`, `issue_number` | Update an issue (optional: `title`, `body`, `state`, `labels`) |
+| `comment_issue` | `owner`, `repo`, `issue_number`, `body` | Add a comment to an issue |
+
+### Pull Requests
+
+| Action | Required Params | Description |
+|--------|----------------|-------------|
+| `list_prs` | `owner`, `repo` | List PRs (optional: `state`, `per_page`) |
+| `get_pr` | `owner`, `repo`, `pull_number` | Get a single PR with diff stats |
+| `create_pr` | `owner`, `repo`, `title`, `head`, `base` | Create a PR (optional: `body`, `draft`) |
+| `review_pr` | `owner`, `repo`, `pull_number`, `event` | Submit a review (`APPROVE`, `REQUEST_CHANGES`, `COMMENT`) |
+| `merge_pr` | `owner`, `repo`, `pull_number` | Merge a PR (optional: `merge_method`: merge/squash/rebase) |
+
+### Repos
+
+| Action | Required Params | Description |
+|--------|----------------|-------------|
+| `list_repos` | (none) | List repos for authenticated user (optional: `owner` for another user) |
+| `get_repo` | `owner`, `repo` | Get repo details (stars, forks, topics, etc.) |
+
+### Releases
+
+| Action | Required Params | Description |
+|--------|----------------|-------------|
+| `list_releases` | `owner`, `repo` | List releases (optional: `per_page`) |
+| `create_release` | `owner`, `repo`, `tag_name` | Create a release (optional: `title`, `body`, `target_commitish`, `draft`) |
+
+### Search
+
+| Action | Required Params | Description |
+|--------|----------------|-------------|
+| `search_issues` | `query` | Search issues and PRs across GitHub |
+| `search_code` | `query` | Search code across repositories |
+| `search_repos` | `query` | Search repositories |
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `action` | `string` | **Required.** One of the 17 actions listed above |
+| `owner` | `string` | Repository owner (user or org) |
+| `repo` | `string` | Repository name |
+| `issue_number` | `number` | Issue number |
+| `pull_number` | `number` | Pull request number |
+| `title` | `string` | Title (for create actions) |
+| `body` | `string` | Body text |
+| `state` | `string` | State filter: `open`, `closed`, or `all` |
+| `labels` | `string` | Comma-separated labels |
+| `head` | `string` | Head branch (for PRs) |
+| `base` | `string` | Base branch (for PRs) |
+| `event` | `string` | Review event: `APPROVE`, `REQUEST_CHANGES`, or `COMMENT` |
+| `merge_method` | `string` | Merge method: `merge`, `squash`, or `rebase` |
+| `tag_name` | `string` | Tag name (for releases) |
+| `query` | `string` | Search query (GitHub search syntax) |
+| `per_page` | `number` | Results per page (max 100) |
+
+## Examples
+
+### List open issues
+
+```json
+{
+  "name": "github",
+  "arguments": {
+    "action": "list_issues",
+    "owner": "FaureAlexis",
+    "repo": "augure",
+    "state": "open"
+  }
+}
+```
+
+### Create a PR
+
+```json
+{
+  "name": "github",
+  "arguments": {
+    "action": "create_pr",
+    "owner": "FaureAlexis",
+    "repo": "augure",
+    "title": "feat: add github tool",
+    "head": "feat/github-tool",
+    "base": "master",
+    "body": "Adds full GitHub CRUD support via Octokit."
+  }
+}
+```
+
+### Search for issues
+
+```json
+{
+  "name": "github",
+  "arguments": {
+    "action": "search_issues",
+    "query": "repo:FaureAlexis/augure is:open label:bug"
+  }
+}
+```
+
+## Output Format
+
+- **Lists** return markdown tables (e.g., `| #42 | title | state | labels |`)
+- **Single items** return formatted markdown with metadata and body
+- **Search results** return tables with result count
+- **Mutations** return a confirmation message with a link
+
+All output is truncated at 4,000 characters.
+
+## Error Handling
+
+If the GitHub token is not configured, the tool returns an error message asking the user to set `tools.github.token`. API errors (404, 403, etc.) are caught and returned as `success: false` with the error message.
