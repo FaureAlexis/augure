@@ -7,3 +7,4 @@ export * from "./skills.js";
 export * from "./scheduler.js";
 export * from "./sandbox.js";
 export * from "./logger.js";
+export * from "./browser.js";

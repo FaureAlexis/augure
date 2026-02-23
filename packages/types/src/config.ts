@@ -1,3 +1,5 @@
+import type { BrowserConfig } from "./browser.js";
+
 export interface IdentityConfig {
   name: string;
   personality: string;
@@ -97,6 +99,7 @@ export interface ToolsConfig {
   github?: {
     token: string;
   };
+  browser?: BrowserConfig;
 }
 
 export interface SecurityConfig {

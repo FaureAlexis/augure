@@ -1,3 +1,5 @@
+import type { BrowserSessionApi } from "./browser.js";
+
 export type SkillStatus = "draft" | "testing" | "active" | "paused" | "broken";
 
 export interface SkillMeta {
@@ -75,6 +77,7 @@ export interface SkillContext {
   state: SkillState;
   previousRun: SkillRunResult | null;
   config: SkillMeta;
+  browser?: BrowserSessionApi;
 }
 
 /** Options for generating a skill */
