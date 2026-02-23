@@ -140,6 +140,24 @@ describe("CronScheduler one-shot jobs", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it("should immediately schedule a one-shot job added after start()", async () => {
+    const scheduler = new CronScheduler();
+    const handler = vi.fn();
+    scheduler.onJobTrigger(handler);
+    scheduler.start();
+
+    // Add a one-shot job AFTER start()
+    const runAt = new Date(Date.now() + 100).toISOString();
+    scheduler.addJob(makeJob({ id: "runtime-oneshot", cron: undefined, runAt }));
+
+    await new Promise((r) => setTimeout(r, 250));
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(scheduler.listJobs()).toHaveLength(0);
+
+    scheduler.stop();
+  });
+
   it("should clean up timer on removeJob", () => {
     const scheduler = new CronScheduler();
     const runAt = new Date(Date.now() + 60_000).toISOString();
