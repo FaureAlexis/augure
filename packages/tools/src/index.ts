@@ -8,3 +8,4 @@ export { httpTool } from "./http.js";
 export { emailTool } from "./email.js";
 export { sandboxExecTool } from "./sandbox-exec.js";
 export { opencodeTool } from "./opencode.js";
+export { githubTool } from "./github.js";
