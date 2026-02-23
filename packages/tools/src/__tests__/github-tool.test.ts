@@ -192,4 +192,151 @@ describe("githubTool", () => {
       expect(result.output).toContain("issuecomment-1");
     });
   });
+
+  describe("PR actions", () => {
+    const ctx = makeCtx("ghp_test123");
+
+    function mockOk(data: unknown) {
+      mockFetch.mockResolvedValue({
+        status: 200,
+        url: "https://api.github.com/",
+        headers: new Headers({ "content-type": "application/json" }),
+        text: () => Promise.resolve(JSON.stringify(data)),
+      });
+    }
+
+    it("list_prs returns markdown table", async () => {
+      mockOk([
+        {
+          number: 5,
+          title: "Add feature",
+          state: "open",
+          user: { login: "alice" },
+          draft: false,
+        },
+        {
+          number: 6,
+          title: "WIP stuff",
+          state: "open",
+          user: { login: "bob" },
+          draft: true,
+        },
+      ]);
+      const result = await githubTool.execute(
+        { action: "list_prs", owner: "acme", repo: "app" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("| #5 |");
+      expect(result.output).toContain("Add feature");
+      expect(result.output).toContain("| #6 |");
+      expect(result.output).toContain("(draft)");
+    });
+
+    it("list_prs returns message when empty", async () => {
+      mockOk([]);
+      const result = await githubTool.execute(
+        { action: "list_prs", owner: "acme", repo: "app" },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("No pull requests found");
+    });
+
+    it("get_pr returns detailed markdown", async () => {
+      mockOk({
+        number: 5,
+        title: "Add feature",
+        state: "open",
+        user: { login: "alice" },
+        draft: false,
+        html_url: "https://github.com/acme/app/pull/5",
+        body: "This adds a feature",
+        created_at: "2025-01-01T00:00:00Z",
+        updated_at: "2025-01-02T00:00:00Z",
+        merged: false,
+        mergeable: true,
+        head: { ref: "feature-branch" },
+        base: { ref: "main" },
+        additions: 50,
+        deletions: 10,
+        changed_files: 3,
+        comments: 2,
+        review_comments: 1,
+      });
+      const result = await githubTool.execute(
+        { action: "get_pr", owner: "acme", repo: "app", pull_number: 5 },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("# #5: Add feature");
+      expect(result.output).toContain("feature-branch -> main");
+      expect(result.output).toContain("+50 -10");
+      expect(result.output).toContain("3 files");
+      expect(result.output).toContain("https://github.com/acme/app/pull/5");
+    });
+
+    it("create_pr returns confirmation with URL", async () => {
+      mockOk({
+        number: 7,
+        html_url: "https://github.com/acme/app/pull/7",
+      });
+      const result = await githubTool.execute(
+        {
+          action: "create_pr",
+          owner: "acme",
+          repo: "app",
+          title: "New PR",
+          head: "feature",
+          base: "main",
+        },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("Created PR #7");
+      expect(result.output).toContain("https://github.com/acme/app/pull/7");
+    });
+
+    it("review_pr returns confirmation", async () => {
+      mockOk({
+        state: "APPROVED",
+        html_url: "https://github.com/acme/app/pull/5#pullrequestreview-1",
+      });
+      const result = await githubTool.execute(
+        {
+          action: "review_pr",
+          owner: "acme",
+          repo: "app",
+          pull_number: 5,
+          event: "APPROVE",
+          body: "LGTM",
+        },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("Review submitted");
+      expect(result.output).toContain("APPROVED");
+    });
+
+    it("merge_pr returns confirmation with SHA", async () => {
+      mockOk({
+        merged: true,
+        message: "Pull Request successfully merged",
+        sha: "abc123",
+      });
+      const result = await githubTool.execute(
+        {
+          action: "merge_pr",
+          owner: "acme",
+          repo: "app",
+          pull_number: 5,
+          merge_method: "squash",
+        },
+        ctx,
+      );
+      expect(result.success).toBe(true);
+      expect(result.output).toContain("Merged");
+      expect(result.output).toContain("abc123");
+    });
+  });
 });

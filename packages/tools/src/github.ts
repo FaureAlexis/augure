@@ -177,6 +177,161 @@ actions.comment_issue = async (client, params) => {
 };
 
 /* ------------------------------------------------------------------ */
+/*  PR formatters                                                     */
+/* ------------------------------------------------------------------ */
+
+interface PrRow {
+  number: number;
+  title: string;
+  state: string;
+  user: { login: string } | null;
+  draft: boolean;
+}
+
+interface PrDetail extends PrRow {
+  html_url: string;
+  body: string | null;
+  created_at: string;
+  updated_at: string;
+  merged: boolean;
+  mergeable: boolean | null;
+  head: { ref: string };
+  base: { ref: string };
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  comments: number;
+  review_comments: number;
+}
+
+function formatPrRow(pr: PrRow): string {
+  const d = pr.draft ? " (draft)" : "";
+  return `| #${pr.number} | ${pr.title}${d} | ${pr.state} | ${pr.user?.login ?? ""} |`;
+}
+
+function formatPrDetail(pr: PrDetail): string {
+  const d = pr.draft ? " (draft)" : "";
+  return [
+    `# #${pr.number}: ${pr.title}${d}`,
+    `**State:** ${pr.state}  **Author:** ${pr.user?.login ?? "unknown"}  **Merged:** ${pr.merged}`,
+    `**Branch:** ${pr.head.ref} -> ${pr.base.ref}`,
+    `**Changes:** +${pr.additions} -${pr.deletions} in ${pr.changed_files} files`,
+    `**Comments:** ${pr.comments} general, ${pr.review_comments} review`,
+    `**Created:** ${pr.created_at}  **Updated:** ${pr.updated_at}`,
+    `**URL:** ${pr.html_url}`,
+    "",
+    pr.body ?? "_No description_",
+  ].join("\n");
+}
+
+/* ------------------------------------------------------------------ */
+/*  PR actions                                                        */
+/* ------------------------------------------------------------------ */
+
+actions.list_prs = async (client, params) => {
+  const { owner, repo, state, per_page } = params as {
+    owner: string;
+    repo: string;
+    state?: string;
+    per_page?: number;
+  };
+  const { data } = await client.pulls.list({
+    owner,
+    repo,
+    state: (state as "open" | "closed" | "all") ?? "open",
+    per_page: per_page ?? 30,
+  });
+  if (data.length === 0) {
+    return { success: true, output: "No pull requests found." };
+  }
+  const header = "| # | Title | State | Author |\n|---|-------|-------|--------|";
+  const rows = data.map((pr) => formatPrRow(pr as unknown as PrRow));
+  return { success: true, output: truncate(`${header}\n${rows.join("\n")}`) };
+};
+
+actions.get_pr = async (client, params) => {
+  const { owner, repo, pull_number } = params as {
+    owner: string;
+    repo: string;
+    pull_number: number;
+  };
+  const { data } = await client.pulls.get({
+    owner,
+    repo,
+    pull_number,
+  });
+  return {
+    success: true,
+    output: truncate(formatPrDetail(data as unknown as PrDetail)),
+  };
+};
+
+actions.create_pr = async (client, params) => {
+  const { owner, repo, title, body, head, base, draft } = params as {
+    owner: string;
+    repo: string;
+    title: string;
+    body?: string;
+    head: string;
+    base: string;
+    draft?: boolean;
+  };
+  const { data } = await client.pulls.create({
+    owner,
+    repo,
+    title,
+    body,
+    head,
+    base,
+    draft,
+  });
+  return {
+    success: true,
+    output: `Created PR #${data.number}: ${data.html_url}`,
+  };
+};
+
+actions.review_pr = async (client, params) => {
+  const { owner, repo, pull_number, event, body } = params as {
+    owner: string;
+    repo: string;
+    pull_number: number;
+    event: string;
+    body?: string;
+  };
+  const { data } = await client.pulls.createReview({
+    owner,
+    repo,
+    pull_number,
+    event: event as "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
+    body,
+  });
+  return {
+    success: true,
+    output: `Review submitted (${data.state}): ${data.html_url}`,
+  };
+};
+
+actions.merge_pr = async (client, params) => {
+  const { owner, repo, pull_number, merge_method } = params as {
+    owner: string;
+    repo: string;
+    pull_number: number;
+    merge_method?: string;
+  };
+  const { data } = await client.pulls.merge({
+    owner,
+    repo,
+    pull_number,
+    merge_method: (merge_method as "merge" | "squash" | "rebase") ?? "merge",
+  });
+  return {
+    success: true,
+    output: `Merged: ${data.message} (SHA: ${data.sha})`,
+  };
+};
+
+/* ------------------------------------------------------------------ */
 /*  Tool definition                                                   */
 /* ------------------------------------------------------------------ */
 
