@@ -1,5 +1,11 @@
 # @augure/tools
 
+## 0.3.0
+
+### Minor Changes
+
+- 1f2df3d: Add GitHub tool with 17 actions (issues, PRs, repos, releases, search) via Octokit
+
 ## 0.2.0
 
 ### Minor Changes
