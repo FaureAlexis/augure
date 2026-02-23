@@ -30,6 +30,7 @@ The codebase is a pnpm monorepo with Turborepo for task orchestration:
 | `@augure/channels` | `packages/channels` | Channel interface + Telegram implementation |
 | `@augure/sandbox` | `packages/sandbox` | Docker container pool with on-demand creation, idle caching, trust-level isolation, and automatic image provisioning |
 | `@augure/skills` | `packages/skills` | Self-generated skill system: LLM generation, sandbox execution, auto-testing, self-healing, scheduler bridge, curated hub |
+| `@augure/code-mode` | `packages/code-mode` | [Code Mode](/docs/code-mode): replaces N-tool calling with single TypeScript code execution in a sandbox |
 
 ## Execution Flow
 
@@ -48,6 +49,10 @@ graph TD
 ```
 
 The agent loops up to `maxToolLoops` times (default: 10) to allow multi-step tool usage. When the LLM returns a plain text response (no tool calls), the loop ends and the response is sent to the user.
+
+### Code Mode
+
+When [Code Mode](/docs/code-mode) is enabled (`codeMode` in config), the agent replaces the N individual tool schemas with a single `execute_code` tool. The LLM writes TypeScript that calls typed APIs in a sandbox, reducing round-trips for complex multi-step tasks. All registered tools remain accessible inside the code via an auto-generated `api.*` proxy.
 
 ### Tool Execution
 

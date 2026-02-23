@@ -125,6 +125,12 @@ If a referenced variable is missing, the agent refuses to start. Keep all secret
     },
   },
 
+  codeMode: {
+    runtime: "auto",
+    timeout: 30,
+    memoryLimit: 128,
+  },
+
   security: {
     sandboxOnly: true,
     allowedHosts: [],
@@ -289,6 +295,16 @@ Self-generated skill system configuration. When present, the agent can create, r
 |-------|------|----------|---------|-------------|
 | `repo` | `string` | Yes | -- | GitHub repository in `owner/repo` format |
 | `branch` | `string` | No | `"main"` | Branch to fetch skills from |
+
+### codeMode
+
+Optional. When present, enables [Code Mode](/docs/code-mode) -- the LLM writes TypeScript that calls typed APIs in a sandbox instead of making individual tool calls.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `runtime` | `"vm" \| "docker" \| "auto"` | `"auto"` | Execution runtime. `vm` = Node.js vm module (fast), `docker` = container sandbox (isolated), `auto` = VM with Docker fallback |
+| `timeout` | `number` | `30` | Maximum execution time in seconds |
+| `memoryLimit` | `number` | `128` | Memory limit in MB (VM runtime only; Docker uses `sandbox.defaults.memoryLimit`) |
 
 ### security
 

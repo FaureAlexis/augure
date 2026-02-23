@@ -114,7 +114,13 @@ Registered when `skills` is configured. See [Skills System](/docs/skills) for de
 | `manage_skill` | Pause, resume, or delete a skill |
 | `install_skill` | Install a curated skill from the GitHub hub |
 
+## Code Mode
+
+When [Code Mode](/docs/code-mode) is enabled, the tool system changes: instead of exposing all tools individually via function calling, the agent exposes a single `execute_code` tool. The LLM writes TypeScript that calls typed APIs (`api.memory_read(...)`, `api.http(...)`, etc.) in a sandbox. This reduces round-trips for multi-step tasks. All registered tools remain accessible inside the code via the auto-generated `api.*` proxy.
+
 ## How Tool Calling Works
+
+Without Code Mode, the standard flow is:
 
 1. The agent assembles context including tool schemas in the system prompt
 2. The LLM returns a response that may include tool calls
