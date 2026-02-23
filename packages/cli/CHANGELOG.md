@@ -1,5 +1,11 @@
 # augure
 
+## 0.6.1
+
+### Patch Changes
+
+- 51f00d2: Add LLM call latency and per-message token/performance summary logs
+
 ## 0.6.0
 
 ### Minor Changes
