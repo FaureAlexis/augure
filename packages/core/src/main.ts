@@ -19,6 +19,7 @@ import {
   emailTool,
   sandboxExecTool,
   opencodeTool,
+  githubTool,
 } from "@augure/tools";
 import Dockerode from "dockerode";
 import { DockerContainerPool, ensureImage } from "@augure/sandbox";
@@ -136,6 +137,7 @@ export async function startAgent(
   tools.register(emailTool);
   tools.register(sandboxExecTool);
   tools.register(opencodeTool);
+  tools.register(githubTool);
 
   const jobStorePath = resolve(configPath, "..", "jobs.json");
   const jobStore = new JobStore(jobStorePath);
