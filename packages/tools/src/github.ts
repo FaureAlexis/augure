@@ -553,7 +553,7 @@ export const githubTool: NativeTool = {
   configCheck: (ctx) =>
     ctx.config.tools?.github?.token
       ? null
-      : "This tool requires tools.github.token in your config.",
+      : "This tool requires configuration. See https://augure.dev/docs/tools/github",
   parameters: {
     type: "object",
     properties: {

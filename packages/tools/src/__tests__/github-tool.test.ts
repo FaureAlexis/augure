@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { githubTool } from "../github.js";
+import { githubTool, truncate } from "../github.js";
 import type { ToolContext, MemoryStore, Scheduler } from "@augure/types";
 
 function makeCtx(token?: string): ToolContext {
@@ -24,6 +24,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function mockOk(data: unknown) {
+  mockFetch.mockResolvedValue({
+    status: 200,
+    url: "https://api.github.com/",
+    headers: new Headers({ "content-type": "application/json" }),
+    text: () => Promise.resolve(JSON.stringify(data)),
+  });
+}
+
 describe("githubTool", () => {
   describe("configCheck", () => {
     it("returns null when token is configured", () => {
@@ -34,7 +43,7 @@ describe("githubTool", () => {
     it("returns warning when token is missing", () => {
       const ctx = makeCtx();
       const result = githubTool.configCheck!(ctx);
-      expect(result).toContain("tools.github.token");
+      expect(result).toContain("configuration");
     });
   });
 
@@ -55,19 +64,68 @@ describe("githubTool", () => {
       expect(result.success).toBe(false);
       expect(result.output).toContain("GitHub token not configured");
     });
+
+    it("handles API errors gracefully", async () => {
+      const ctx = makeCtx("ghp_test123");
+      mockFetch.mockResolvedValue({
+        status: 404,
+        url: "https://api.github.com/repos/acme/nonexistent",
+        headers: new Headers({ "content-type": "application/json" }),
+        text: () => Promise.resolve(JSON.stringify({ message: "Not Found" })),
+      });
+      const result = await githubTool.execute(
+        { action: "get_repo", owner: "acme", repo: "nonexistent" },
+        ctx,
+      );
+      expect(result.success).toBe(false);
+      expect(result.output).toBeTruthy();
+    });
+
+    it("handles rate limit errors", async () => {
+      const ctx = makeCtx("ghp_test123");
+      mockFetch.mockResolvedValue({
+        status: 403,
+        url: "https://api.github.com/repos/acme/app",
+        headers: new Headers({
+          "content-type": "application/json",
+          "x-ratelimit-remaining": "0",
+        }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ message: "API rate limit exceeded" }),
+          ),
+      });
+      const result = await githubTool.execute(
+        { action: "get_repo", owner: "acme", repo: "app" },
+        ctx,
+      );
+      expect(result.success).toBe(false);
+      expect(result.output).toBeTruthy();
+    });
+  });
+
+  describe("truncate", () => {
+    it("returns text unchanged when under limit", () => {
+      expect(truncate("short text")).toBe("short text");
+    });
+
+    it("truncates text exceeding the limit", () => {
+      const long = "x".repeat(5000);
+      const result = truncate(long);
+      expect(result).toContain("... (truncated)");
+      expect(result.length).toBeLessThan(5000);
+    });
+
+    it("respects custom limit", () => {
+      const text = "x".repeat(200);
+      const result = truncate(text, 100);
+      expect(result.length).toBeLessThan(200);
+      expect(result).toContain("... (truncated)");
+    });
   });
 
   describe("issue actions", () => {
     const ctx = makeCtx("ghp_test123");
-
-    function mockOk(data: unknown) {
-      mockFetch.mockResolvedValue({
-        status: 200,
-        url: "https://api.github.com/",
-        headers: new Headers({ "content-type": "application/json" }),
-        text: () => Promise.resolve(JSON.stringify(data)),
-      });
-    }
 
     it("list_issues returns markdown table", async () => {
       mockOk([
@@ -195,15 +253,6 @@ describe("githubTool", () => {
 
   describe("PR actions", () => {
     const ctx = makeCtx("ghp_test123");
-
-    function mockOk(data: unknown) {
-      mockFetch.mockResolvedValue({
-        status: 200,
-        url: "https://api.github.com/",
-        headers: new Headers({ "content-type": "application/json" }),
-        text: () => Promise.resolve(JSON.stringify(data)),
-      });
-    }
 
     it("list_prs returns markdown table", async () => {
       mockOk([
@@ -343,15 +392,6 @@ describe("githubTool", () => {
   describe("repos + releases actions", () => {
     const ctx = makeCtx("ghp_test123");
 
-    function mockOk(data: unknown) {
-      mockFetch.mockResolvedValue({
-        status: 200,
-        url: "https://api.github.com/",
-        headers: new Headers({ "content-type": "application/json" }),
-        text: () => Promise.resolve(JSON.stringify(data)),
-      });
-    }
-
     it("list_repos returns markdown table", async () => {
       mockOk([
         {
@@ -481,15 +521,6 @@ describe("githubTool", () => {
 
   describe("search actions", () => {
     const ctx = makeCtx("ghp_test123");
-
-    function mockOk(data: unknown) {
-      mockFetch.mockResolvedValue({
-        status: 200,
-        url: "https://api.github.com/",
-        headers: new Headers({ "content-type": "application/json" }),
-        text: () => Promise.resolve(JSON.stringify(data)),
-      });
-    }
 
     it("search_issues returns results table", async () => {
       mockOk({
