@@ -24,6 +24,7 @@
   "dependencies": {
     "citty": "^0.2.1",
     "dockerode": "^4.0.9",
+    "esbuild": "^0.25.0",
     "grammy": "^1.40.0",
     "imapflow": "^1.2.10",
     "nodemailer": "^6.10.1",
