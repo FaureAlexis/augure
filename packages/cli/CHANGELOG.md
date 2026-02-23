@@ -1,5 +1,11 @@
 # augure
 
+## 0.7.0
+
+### Minor Changes
+
+- 1f2df3d: Add GitHub tool with 17 actions (issues, PRs, repos, releases, search) via Octokit
+
 ## 0.6.1
 
 ### Patch Changes
