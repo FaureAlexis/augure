@@ -5,28 +5,77 @@ description: Replace N-tool function calling with single TypeScript code executi
 
 Code Mode is an alternative execution model where the LLM writes TypeScript code that calls typed APIs in a sandbox, instead of making individual tool calls. This reduces LLM round-trips and enables complex multi-step workflows in a single pass.
 
+<Callout type="info">
+This approach is inspired by Cloudflare's [Code Mode: the better way to use MCP](https://blog.cloudflare.com/code-mode/) by Kenton Varda and Sunil Pai. The core insight: LLMs have vastly more training data on real code than on tool-calling syntax, so letting them write code that calls typed APIs produces better results than one-tool-at-a-time function calling.
+</Callout>
+
 ## How It Works
 
 ### Classic Tool Loop (without Code Mode)
 
-```
-LLM -> toolCall(memory_read) -> result -> LLM -> toolCall(http) -> result -> LLM -> response
-= 3 LLM round-trips
+In the standard ReAct loop, each tool call requires a full LLM round-trip:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Agent (LLM)
+    participant T as ToolRegistry
+
+    U->>A: "Summarize my notes and post to API"
+    A->>T: memory_read({ path: "notes.md" })
+    T-->>A: { success: true, output: "..." }
+    A->>T: http({ url: "...", body: "..." })
+    T-->>A: { success: true, output: "..." }
+    A->>T: memory_write({ path: "summary.md", ... })
+    T-->>A: { success: true }
+    A->>U: "Done! Here's the summary..."
+
+    Note over A,T: 3 LLM round-trips
 ```
 
 ### Code Mode
 
-```
-LLM -> execute_code(`
-  const data = await api.memory_read({ path: "notes.md" });
-  const resp = await api.http({ url: "...", body: data.output });
-  await api.memory_write({ path: "summary.md", content: resp.output });
-  return resp.output;
-`) -> result -> LLM -> response
-= 1 LLM round-trip
+With Code Mode, the LLM writes a single TypeScript program that chains all tool calls:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Agent (LLM)
+    participant E as Code Executor
+    participant T as ToolRegistry
+
+    U->>A: "Summarize my notes and post to API"
+    A->>E: execute_code(`const data = await api.memory_read(...)`)
+    E->>T: memory_read({ path: "notes.md" })
+    T-->>E: { success: true, output: "..." }
+    E->>T: http({ url: "...", body: "..." })
+    T-->>E: { success: true, output: "..." }
+    E->>T: memory_write({ path: "summary.md", ... })
+    T-->>E: { success: true }
+    E-->>A: { success: true, output: "..." }
+    A->>U: "Done! Here's the summary..."
+
+    Note over A,E: 1 LLM round-trip
 ```
 
 When Code Mode is enabled, the LLM sees a single `execute_code` tool instead of individual tools. The tool description includes auto-generated TypeScript declarations for all registered tools, so the LLM knows the exact API signatures.
+
+## Architecture
+
+```mermaid
+graph TD
+    TR["ToolRegistry\n(all registered tools)"] --> TG["Typegen\n(auto-generate .d.ts)"]
+    TG --> CM["execute_code tool\n(includes typed declarations)"]
+    CM --> AE{"Runtime?"}
+    AE -->|vm| VM["VmExecutor\nNode.js vm + esbuild"]
+    AE -->|docker| DK["DockerExecutor\nDocker container + tsx"]
+    AE -->|auto| AU["AutoExecutor\nVM first, Docker fallback"]
+    VM --> BR["Bridge\napi.* → ToolRegistry.execute()"]
+    DK --> BR
+    AU --> VM
+    AU --> DK
+    BR --> TR
+```
 
 ## Configuration
 
@@ -50,6 +99,25 @@ Add the `codeMode` section to your `augure.json5`:
 | `memoryLimit` | `number` | `128` | Memory limit in MB (applies to VM runtime only) |
 
 ## Runtimes
+
+```mermaid
+graph LR
+    subgraph VM["VM Runtime"]
+        direction TB
+        V1["esbuild transpile\n(< 5ms)"] --> V2["Node.js vm context\n(isolated V8)"] --> V3["Injected bridge\n(api.* callbacks)"]
+    end
+
+    subgraph Docker["Docker Runtime"]
+        direction TB
+        D1["Base64 inject\ncode + harness"] --> D2["npx tsx\nin container"] --> D3["HTTP bridge\n(not yet in v1)"]
+    end
+
+    subgraph Auto["Auto Runtime"]
+        direction TB
+        A1["Try VM"] -->|executor crash| A2["Fallback to Docker"]
+        A1 -->|success or code error| A3["Return result"]
+    end
+```
 
 ### VM (fast, default)
 
