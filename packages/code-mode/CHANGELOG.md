@@ -1,5 +1,12 @@
 # @augure/code-mode
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [33060dd]
+  - @augure/tools@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
