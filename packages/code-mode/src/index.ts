@@ -5,3 +5,5 @@ export type { BridgeHandler } from "./bridge.js";
 export type { CodeModeResult, CodeModeExecutor } from "./executor.js";
 export { VmExecutor } from "./vm-sandbox.js";
 export type { VmExecutorConfig } from "./vm-sandbox.js";
+export { DockerExecutor } from "./docker-sandbox.js";
+export type { DockerExecutorConfig } from "./docker-sandbox.js";
