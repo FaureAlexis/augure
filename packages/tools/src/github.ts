@@ -28,6 +28,155 @@ type ActionHandler = (
 const actions: Record<string, ActionHandler> = {};
 
 /* ------------------------------------------------------------------ */
+/*  Issue formatters                                                  */
+/* ------------------------------------------------------------------ */
+
+interface IssueRow {
+  number: number;
+  title: string;
+  state: string;
+  user: { login: string } | null;
+  labels: { name: string }[];
+}
+
+interface IssueDetail extends IssueRow {
+  html_url: string;
+  body: string | null;
+  created_at: string;
+  updated_at: string;
+  comments: number;
+  assignees: { login: string }[];
+}
+
+function formatIssueRow(i: IssueRow): string {
+  const labels = i.labels.map((l) => l.name).join(", ");
+  return `| #${i.number} | ${i.title} | ${i.state} | ${i.user?.login ?? ""} | ${labels} |`;
+}
+
+function formatIssueDetail(i: IssueDetail): string {
+  const assignees = i.assignees.map((a) => a.login).join(", ") || "none";
+  const labels = i.labels.map((l) => l.name).join(", ") || "none";
+  return [
+    `# #${i.number}: ${i.title}`,
+    `**State:** ${i.state}  **Author:** ${i.user?.login ?? "unknown"}`,
+    `**Assignees:** ${assignees}  **Labels:** ${labels}`,
+    `**Comments:** ${i.comments}  **Created:** ${i.created_at}  **Updated:** ${i.updated_at}`,
+    `**URL:** ${i.html_url}`,
+    "",
+    i.body ?? "_No description_",
+  ].join("\n");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Issue actions                                                     */
+/* ------------------------------------------------------------------ */
+
+actions.list_issues = async (client, params) => {
+  const { owner, repo, state, labels, per_page } = params as {
+    owner: string;
+    repo: string;
+    state?: string;
+    labels?: string;
+    per_page?: number;
+  };
+  const { data } = await client.issues.listForRepo({
+    owner,
+    repo,
+    state: (state as "open" | "closed" | "all") ?? "open",
+    labels,
+    per_page: per_page ?? 30,
+  });
+  if (data.length === 0) {
+    return { success: true, output: "No issues found." };
+  }
+  const header = "| # | Title | State | Author | Labels |\n|---|-------|-------|--------|--------|";
+  const rows = data.map((i) => formatIssueRow(i as unknown as IssueRow));
+  return { success: true, output: truncate(`${header}\n${rows.join("\n")}`) };
+};
+
+actions.get_issue = async (client, params) => {
+  const { owner, repo, issue_number } = params as {
+    owner: string;
+    repo: string;
+    issue_number: number;
+  };
+  const { data } = await client.issues.get({
+    owner,
+    repo,
+    issue_number,
+  });
+  return {
+    success: true,
+    output: truncate(formatIssueDetail(data as unknown as IssueDetail)),
+  };
+};
+
+actions.create_issue = async (client, params) => {
+  const { owner, repo, title, body, labels } = params as {
+    owner: string;
+    repo: string;
+    title: string;
+    body?: string;
+    labels?: string;
+  };
+  const { data } = await client.issues.create({
+    owner,
+    repo,
+    title,
+    body,
+    labels: labels ? labels.split(",").map((l) => l.trim()) : undefined,
+  });
+  return {
+    success: true,
+    output: `Created issue #${data.number}: ${data.html_url}`,
+  };
+};
+
+actions.update_issue = async (client, params) => {
+  const { owner, repo, issue_number, title, body, state, labels } = params as {
+    owner: string;
+    repo: string;
+    issue_number: number;
+    title?: string;
+    body?: string;
+    state?: string;
+    labels?: string;
+  };
+  const { data } = await client.issues.update({
+    owner,
+    repo,
+    issue_number,
+    title,
+    body,
+    state: state as "open" | "closed" | undefined,
+    labels: labels ? labels.split(",").map((l) => l.trim()) : undefined,
+  });
+  return {
+    success: true,
+    output: `Updated issue #${data.number}: ${data.html_url}`,
+  };
+};
+
+actions.comment_issue = async (client, params) => {
+  const { owner, repo, issue_number, body } = params as {
+    owner: string;
+    repo: string;
+    issue_number: number;
+    body: string;
+  };
+  const { data } = await client.issues.createComment({
+    owner,
+    repo,
+    issue_number,
+    body,
+  });
+  return {
+    success: true,
+    output: `Comment added: ${data.html_url}`,
+  };
+};
+
+/* ------------------------------------------------------------------ */
 /*  Tool definition                                                   */
 /* ------------------------------------------------------------------ */
 
