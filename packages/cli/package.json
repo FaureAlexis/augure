@@ -60,6 +60,7 @@
     "url": "https://github.com/FaureAlexis/augure.git",
     "directory": "packages/cli"
   },
+  "url": "https://augure.dev",
   "publishConfig": {
     "access": "public"
   }
