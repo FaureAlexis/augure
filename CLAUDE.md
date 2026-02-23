@@ -42,6 +42,7 @@ pnpm release              # Publish to npm
     ├── @augure/scheduler  (node-cron + heartbeat + job persistence)
     ├── @augure/sandbox    (Docker container pool with trust levels)
     ├── @augure/skills     (self-programming: generate → test → heal)
+    ├── @augure/code-mode  (Code Mode: LLM writes TS that calls tools programmatically)
     ↑
     └── @augure/core       (Agent orchestrator — depends on all above)
             ↑
@@ -61,6 +62,7 @@ The Agent (`packages/core/src/agent.ts`) runs a message → LLM → tool-call �
 - **Config via `augure.json5`**: Supports `${ENV_VAR}` interpolation, validated with Zod. Multi-model LLM routing (default/reasoning/ingestion/monitoring/coding).
 - **Docker sandboxing**: Code execution isolated in containers with trust levels, memory/CPU limits, network restrictions.
 - **Skills system**: LLM-generated code units with YAML frontmatter, auto-tested in sandbox, self-healing on failure.
+- **Code Mode** (`@augure/code-mode`): The LLM can write TypeScript code that calls tools programmatically via an `api` object, instead of one-tool-at-a-time. Three runtimes: `vm` (Node `vm` module, fast), `docker` (sandboxed container), `auto` (VM with Docker fallback). The tool registry is introspected to auto-generate typed declarations. Enabled via `config.codeMode` with runtime/timeout/memoryLimit settings.
 - **Structured logging**: `Logger` interface in `@augure/types` with `noopLogger` default. `createLogger()` in `@augure/core` produces colored, leveled output (`▲ HH:MM:SS.mmm LVL scope`). Subsystems receive child loggers via DI (`log.child("sandbox")`). Use `augure start --debug` for debug-level output.
 
 ## Code Conventions
