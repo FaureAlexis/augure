@@ -1,5 +1,11 @@
 # augure
 
+## 0.6.0
+
+### Minor Changes
+
+- 5d7e392: Add code mode support — LLM writes TypeScript calling typed APIs in a sandbox instead of individual tool calls
+
 ## 0.5.0
 
 ### Minor Changes
