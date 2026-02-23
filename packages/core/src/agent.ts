@@ -79,6 +79,9 @@ export class Agent {
 
     const maxLoops = this.config.maxToolLoops ?? 10;
     let loopCount = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalToolCalls = 0;
 
     const toolSchemas = this.config.tools.toFunctionSchemas();
 
@@ -111,6 +114,8 @@ export class Agent {
 
       this.log.debug(`LLM call #${loopCount + 1} (${messages.length} messages)`);
       const response = await this.config.llm.chat(messages, effectiveSchemas);
+      totalInputTokens += response.usage.inputTokens;
+      totalOutputTokens += response.usage.outputTokens;
 
       if (response.toolCalls.length === 0) {
         history.push({
@@ -140,6 +145,10 @@ export class Agent {
           });
         }
 
+        this.log.info(
+          `── ${totalInputTokens}+${totalOutputTokens} tokens | ${loopCount + 1} LLM calls | ${totalToolCalls} tool calls | ${Date.now() - start}ms`,
+        );
+
         // Trigger ingestion in background (don't block response)
         if (this.config.ingester) {
           this.config.ingester
@@ -156,6 +165,7 @@ export class Agent {
         toolCalls: response.toolCalls,
       });
 
+      totalToolCalls += response.toolCalls.length;
       for (const toolCall of response.toolCalls) {
         const toolStart = Date.now();
         this.log.debug(`Tool: ${toolCall.name}`);

@@ -238,6 +238,62 @@ describe("Agent", () => {
     expect(userMessages[0]!.content).toBe("Message 2");
   });
 
+  it("should log a summary with tokens and timing after handling a message", async () => {
+    const llm: LLMClient = {
+      chat: vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: "",
+          toolCalls: [
+            { id: "tc1", name: "test_tool", arguments: {} },
+          ],
+          usage: { inputTokens: 100, outputTokens: 20 },
+        })
+        .mockResolvedValueOnce({
+          content: "Done",
+          toolCalls: [],
+          usage: { inputTokens: 150, outputTokens: 30 },
+        }),
+    };
+
+    const tools = new ToolRegistry();
+    tools.register({
+      name: "test_tool",
+      description: "test",
+      parameters: {},
+      execute: async () => ({ success: true, output: "ok" }),
+    });
+
+    const logs: string[] = [];
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn((...args: unknown[]) => logs.push(String(args[0]))),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn().mockReturnThis(),
+    };
+
+    const agent = new Agent({
+      llm,
+      tools,
+      systemPrompt: "test",
+      memoryContent: "",
+      logger,
+    });
+
+    await agent.handleMessage({
+      id: "1", channelType: "telegram", userId: "123",
+      text: "go", timestamp: new Date(),
+    });
+
+    const summary = logs.find((l) => l.startsWith("──"));
+    expect(summary).toBeDefined();
+    expect(summary).toContain("250+50 tokens");
+    expect(summary).toContain("2 LLM calls");
+    expect(summary).toContain("1 tool calls");
+    expect(summary).toMatch(/\d+ms/);
+  });
+
   it("should trigger ingestion after message when ingester is provided", async () => {
     const llm = createMockLLM({ content: "Response" });
     const tools = new ToolRegistry();

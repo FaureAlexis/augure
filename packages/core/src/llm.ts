@@ -27,6 +27,7 @@ export class OpenRouterClient implements LLMClient {
   async chat(messages: Message[], tools?: FunctionSchema[]): Promise<LLMResponse> {
     this.log.debug(`Request: model=${this.model} messages=${messages.length} tools=${tools?.length ?? 0}`);
 
+    const fetchStart = Date.now();
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -68,7 +69,7 @@ export class OpenRouterClient implements LLMClient {
     const choice = data.choices[0];
 
     this.log.debug(
-      `Response: ${response.status} ${data.usage.prompt_tokens}+${data.usage.completion_tokens} tokens`,
+      `Response: ${response.status} ${data.usage.prompt_tokens}+${data.usage.completion_tokens} tokens in ${Date.now() - fetchStart}ms`,
     );
 
     return {

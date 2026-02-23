@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { OpenRouterClient } from "../llm.js";
@@ -194,6 +194,41 @@ describe("OpenRouterClient", () => {
     expect(result.toolCalls).toHaveLength(1);
     expect(result.toolCalls[0].name).toBe("broken_tool");
     expect(result.toolCalls[0].arguments).toEqual({});
+  });
+
+  it("should log response with timing", async () => {
+    server.use(
+      http.post(`${BASE_URL}/chat/completions`, () => {
+        return HttpResponse.json({
+          choices: [{ message: { content: "OK", tool_calls: [] } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        });
+      }),
+    );
+
+    const logs: string[] = [];
+    const logger = {
+      debug: vi.fn((...args: unknown[]) => logs.push(String(args[0]))),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn().mockReturnThis(),
+    };
+
+    const client = new OpenRouterClient({
+      apiKey: "test-key",
+      model: "test-model",
+      maxTokens: 1024,
+      baseUrl: BASE_URL,
+      logger,
+    });
+
+    await client.chat([{ role: "user", content: "Hi" }]);
+
+    const responseLine = logs.find((l) => l.startsWith("Response:"));
+    expect(responseLine).toBeDefined();
+    expect(responseLine).toContain("10+5 tokens");
+    expect(responseLine).toMatch(/in \d+ms/);
   });
 
   it("should throw on API error", async () => {
