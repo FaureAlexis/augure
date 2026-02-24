@@ -368,6 +368,57 @@ export async function startAgent(
     codeModeExecutor,
   });
 
+  // Set up heartbeat
+  const heartbeatIntervalMs = parseInterval(
+    config.scheduler.heartbeatInterval,
+  );
+  const heartbeat = new Heartbeat({
+    llm: monitoringLLM,
+    memory,
+    intervalMs: heartbeatIntervalMs,
+    logger: log.child("heartbeat"),
+    onAction: async (action) => {
+      log.info(`Heartbeat action: ${action}`);
+      const response = await agent.handleMessage({
+        id: `heartbeat-${Date.now()}`,
+        channelType: "system",
+        userId: "system",
+        text: `[Heartbeat] ${action}`,
+        timestamp: new Date(),
+      });
+      log.debug(`Heartbeat response: ${response.slice(0, 200)}`);
+    },
+  });
+
+  scheduler.onJobTrigger(async (job) => {
+    log.info(`Job triggered: ${job.id}`);
+    const response = await agent.handleMessage({
+      id: `job-${job.id}-${Date.now()}`,
+      channelType: "system",
+      userId: "system",
+      text: job.prompt,
+      timestamp: new Date(),
+    });
+    // Send response to Telegram if configured
+    if (telegram && config.channels.telegram?.enabled) {
+      const userId = config.channels.telegram.allowedUsers[0];
+      if (userId !== undefined) {
+        await telegram.send({
+          channelType: "telegram",
+          userId: String(userId),
+          text: response,
+        });
+      }
+    }
+    log.debug(`Job ${job.id} completed`);
+  });
+
+  scheduler.start();
+  heartbeat.start();
+  log.info(
+    `Scheduler started: ${scheduler.listJobs().length} jobs, heartbeat every ${config.scheduler.heartbeatInterval}`,
+  );
+
   if (config.channels.telegram?.enabled) {
     const telegramLog = log.child("telegram");
     telegram = new TelegramChannel({
@@ -423,60 +474,8 @@ export async function startAgent(
       }
     });
 
-    await tg.start();
-    log.info("Telegram bot started");
+    log.info("Telegram bot starting...");
   }
-
-  // Set up heartbeat
-  const heartbeatIntervalMs = parseInterval(
-    config.scheduler.heartbeatInterval,
-  );
-  const heartbeat = new Heartbeat({
-    llm: monitoringLLM,
-    memory,
-    intervalMs: heartbeatIntervalMs,
-    logger: log.child("heartbeat"),
-    onAction: async (action) => {
-      log.info(`Heartbeat action: ${action}`);
-      const response = await agent.handleMessage({
-        id: `heartbeat-${Date.now()}`,
-        channelType: "system",
-        userId: "system",
-        text: `[Heartbeat] ${action}`,
-        timestamp: new Date(),
-      });
-      log.debug(`Heartbeat response: ${response.slice(0, 200)}`);
-    },
-  });
-
-  scheduler.onJobTrigger(async (job) => {
-    log.info(`Job triggered: ${job.id}`);
-    const response = await agent.handleMessage({
-      id: `job-${job.id}-${Date.now()}`,
-      channelType: "system",
-      userId: "system",
-      text: job.prompt,
-      timestamp: new Date(),
-    });
-    // Send response to Telegram if configured
-    if (telegram && config.channels.telegram?.enabled) {
-      const userId = config.channels.telegram.allowedUsers[0];
-      if (userId !== undefined) {
-        await telegram.send({
-          channelType: "telegram",
-          userId: String(userId),
-          text: response,
-        });
-      }
-    }
-    log.debug(`Job ${job.id} completed`);
-  });
-
-  scheduler.start();
-  heartbeat.start();
-  log.info(
-    `Scheduler started: ${scheduler.listJobs().length} jobs, heartbeat every ${config.scheduler.heartbeatInterval}`,
-  );
 
   // Periodic update timers (stored for cleanup on shutdown)
   const updateTimers: ReturnType<typeof setInterval>[] = [];
@@ -542,4 +541,11 @@ export async function startAgent(
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+
+  // NOTE: tg.start() uses grammY long-polling which blocks forever.
+  // It MUST be the last call — everything above (scheduler, heartbeat,
+  // shutdown handlers, update timers) must be set up before this point.
+  if (telegram) {
+    await telegram.start();
+  }
 }
