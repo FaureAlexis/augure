@@ -1,5 +1,14 @@
 # @augure/code-mode
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [d26c70d]
+  - @augure/types@0.4.0
+  - @augure/tools@0.4.0
+  - @augure/sandbox@0.1.3
+
 ## 0.1.3
 
 ### Patch Changes

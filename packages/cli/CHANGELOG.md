@@ -1,5 +1,13 @@
 # augure
 
+## 0.7.1
+
+### Patch Changes
+
+- d26c70d: Add browser automation via Stagehand. New @augure/browser package with BrowserSessionManager.
+  Session-based browser NativeTool for LLM with act/extract/observe/screenshot actions.
+  Supports local Playwright and Browserbase cloud providers.
+
 ## 0.7.0
 
 ### Minor Changes

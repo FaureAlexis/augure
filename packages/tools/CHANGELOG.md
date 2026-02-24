@@ -1,5 +1,19 @@
 # @augure/tools
 
+## 0.4.0
+
+### Minor Changes
+
+- d26c70d: Add browser automation via Stagehand. New @augure/browser package with BrowserSessionManager.
+  Session-based browser NativeTool for LLM with act/extract/observe/screenshot actions.
+  Supports local Playwright and Browserbase cloud providers.
+
+### Patch Changes
+
+- Updated dependencies [d26c70d]
+  - @augure/types@0.4.0
+  - @augure/browser@0.1.1
+
 ## 0.3.0
 
 ### Minor Changes
