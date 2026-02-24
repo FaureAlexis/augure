@@ -1,6 +1,6 @@
 {
   "name": "augure",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Augure — your proactive AI agent",
   "type": "module",
   "bin": {
