@@ -1,5 +1,12 @@
 # @augure/scheduler
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [d26c70d]
+  - @augure/types@0.4.0
+
 ## 0.1.2
 
 ### Patch Changes
