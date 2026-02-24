@@ -284,6 +284,9 @@ importers:
 
   packages/tools:
     dependencies:
+      '@augure/browser':
+        specifier: workspace:*
+        version: link:../browser
       '@augure/types':
         specifier: workspace:*
         version: link:../types

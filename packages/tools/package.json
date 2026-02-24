@@ -10,6 +10,7 @@
     }
   },
   "dependencies": {
+    "@augure/browser": "workspace:*",
     "@augure/types": "workspace:*",
     "@octokit/rest": "^22.0.1",
     "imapflow": "^1.2.10",
