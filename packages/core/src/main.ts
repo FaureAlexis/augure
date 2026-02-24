@@ -200,6 +200,7 @@ export async function startAgent(
       pool,
       manager: skillManager,
       defaults: config.sandbox.defaults,
+      browserManager,
     });
     const skillTester = new SkillTester({
       pool,

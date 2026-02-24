@@ -13,6 +13,12 @@ export interface SkillRunnerConfig {
     memoryLimit: string;
     cpuLimit: string;
   };
+  /**
+   * Browser session manager for skills that declare `tools: ["browser"]`.
+   * v0: Not injected as ctx.browser inside containers (skills run in Docker,
+   * Stagehand runs on host). The LLM orchestrates browser calls via the
+   * NativeTool instead. Direct ctx.browser inside containers is a v1 enhancement.
+   */
   browserManager?: {
     open(url?: string): Promise<string>;
     navigate(sessionId: string, url: string): Promise<void>;

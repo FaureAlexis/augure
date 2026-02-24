@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { BrowserSessionManager } from "../session-manager.js";
 import type { BrowserConfig, LLMModelConfig } from "@augure/types";
 
@@ -134,5 +134,48 @@ describe("BrowserSessionManager", () => {
     await manager.open();
     await manager.closeAll();
     expect(mockStagehand.close).toHaveBeenCalledTimes(2);
+  });
+
+  describe("TTL expiry", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should auto-close session after TTL expires", async () => {
+      const sessionId = await manager.open();
+      const closeSpy = vi.spyOn(manager, "close") as MockInstance;
+
+      vi.advanceTimersByTime(5000);
+      // Allow the async close to flush
+      await vi.runAllTimersAsync();
+
+      expect(closeSpy).toHaveBeenCalledWith(sessionId);
+    });
+
+    it("should reset TTL on activity", async () => {
+      const sessionId = await manager.open();
+      const closeSpy = vi.spyOn(manager, "close") as MockInstance;
+
+      // Advance 4s (within TTL)
+      vi.advanceTimersByTime(4000);
+      expect(closeSpy).not.toHaveBeenCalled();
+
+      // Activity resets TTL
+      await manager.act(sessionId, "click button");
+
+      // Advance another 4s (within new TTL window)
+      vi.advanceTimersByTime(4000);
+      expect(closeSpy).not.toHaveBeenCalled();
+
+      // Advance past the new TTL (total 5s from last activity)
+      vi.advanceTimersByTime(1000);
+      await vi.runAllTimersAsync();
+
+      expect(closeSpy).toHaveBeenCalledWith(sessionId);
+    });
   });
 });

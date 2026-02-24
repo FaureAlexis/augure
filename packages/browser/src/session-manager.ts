@@ -15,14 +15,13 @@ export interface BrowserSessionManagerConfig {
   logger?: Logger;
 }
 
-let counter = 0;
-
 export class BrowserSessionManager {
   private readonly sessions = new Map<string, SessionEntry>();
   private readonly config: BrowserConfig;
   private readonly llm: LLMModelConfig;
   private readonly ttlMs: number;
   private readonly log: Logger;
+  private counter = 0;
 
   constructor(opts: BrowserSessionManagerConfig) {
     this.config = opts.config;
@@ -32,14 +31,15 @@ export class BrowserSessionManager {
   }
 
   async open(url?: string): Promise<string> {
-    const id = `s_${Date.now()}_${++counter}`;
+    const id = `s_${Date.now()}_${++this.counter}`;
     const stagehandConfig = createStagehandConfig(this.config, this.llm);
     const stagehand = new Stagehand(stagehandConfig);
     await stagehand.init();
 
     if (url) {
       const page = stagehand.context.activePage();
-      if (page) await page.goto(url, { waitUntil: "domcontentloaded" });
+      if (!page) throw new Error(`No active page after init for session ${id}`);
+      await page.goto(url, { waitUntil: "domcontentloaded" });
     }
 
     const timer = setTimeout(() => {
@@ -56,7 +56,8 @@ export class BrowserSessionManager {
     const entry = this.getSession(sessionId);
     this.resetTtl(sessionId, entry);
     const page = entry.stagehand.context.activePage();
-    if (page) await page.goto(url, { waitUntil: "domcontentloaded" });
+    if (!page) throw new Error(`No active page for session ${sessionId}`);
+    await page.goto(url, { waitUntil: "domcontentloaded" });
   }
 
   async act(

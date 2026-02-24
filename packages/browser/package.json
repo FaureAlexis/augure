@@ -22,6 +22,12 @@
     "@augure/types": "workspace:*",
     "@browserbasehq/stagehand": "^3.0.0"
   },
+  "peerDependencies": {
+    "playwright": "^1.52.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": { "optional": true }
+  },
   "devDependencies": {
     "vitest": "^4.0.18",
     "typescript": "^5.9.3"
