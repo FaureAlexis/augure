@@ -13,6 +13,15 @@ export interface SkillRunnerConfig {
     memoryLimit: string;
     cpuLimit: string;
   };
+  browserManager?: {
+    open(url?: string): Promise<string>;
+    navigate(sessionId: string, url: string): Promise<void>;
+    act(sessionId: string, instruction: string, variables?: Record<string, string>): Promise<{ success: boolean; message: string }>;
+    extract(sessionId: string, instruction: string, schema?: Record<string, unknown>): Promise<unknown>;
+    observe(sessionId: string, instruction: string): Promise<Array<{ description: string; selector: string }>>;
+    screenshot(sessionId: string): Promise<string>;
+    close(sessionId: string): Promise<void>;
+  };
 }
 
 const HARNESS_TEMPLATE = `

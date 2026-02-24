@@ -199,3 +199,36 @@ describe("SkillRunner", () => {
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("SkillRunner with browserManager", () => {
+  it("should accept browserManager in config", () => {
+    const mockBrowserManager = {
+      open: vi.fn().mockResolvedValue("s_test"),
+      navigate: vi.fn().mockResolvedValue(undefined),
+      act: vi.fn().mockResolvedValue({ success: true, message: "ok" }),
+      extract: vi.fn().mockResolvedValue({ data: "test" }),
+      observe: vi.fn().mockResolvedValue([]),
+      screenshot: vi.fn().mockResolvedValue("base64"),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const runner = new SkillRunner({
+      pool: mockPool(),
+      manager: mockManager(),
+      defaults: { timeout: 120, memoryLimit: "512m", cpuLimit: "1.0" },
+      browserManager: mockBrowserManager,
+    });
+
+    expect(runner).toBeDefined();
+  });
+
+  it("should work without browserManager (backward compatible)", () => {
+    const runner = new SkillRunner({
+      pool: mockPool(),
+      manager: mockManager(),
+      defaults: { timeout: 120, memoryLimit: "512m", cpuLimit: "1.0" },
+    });
+
+    expect(runner).toBeDefined();
+  });
+});
