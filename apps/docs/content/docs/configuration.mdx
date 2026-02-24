@@ -101,6 +101,16 @@ If a referenced variable is missing, the agent refuses to start. Keep all secret
       provider: "tavily",
       apiKey: "${TAVILY_API_KEY}",
     },
+    browser: {
+      provider: "browserbase",
+      browserbase: {
+        apiKey: "${BROWSERBASE_API_KEY}",
+      },
+      defaults: {
+        timeout: 30,
+        headless: true,
+      },
+    },
     http: {
       timeoutMs: 10000,
       presets: {
@@ -254,6 +264,19 @@ Each `HttpPreset`:
 |-------|------|-------------|
 | `baseUrl` | `string` | Base URL prepended when the tool URL does not start with `http` |
 | `headers` | `Record<string, string>` | Headers injected for this preset (typically auth tokens) |
+
+#### tools.browser
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `provider` | `"local" \| "browserbase"` | Yes | Browser provider. `local` uses Playwright, `browserbase` uses cloud browsers |
+| `browserbase` | `object` | For Browserbase | Browserbase credentials |
+| `browserbase.apiKey` | `string` | Yes | Browserbase API key (use `${ENV_VAR}`) |
+| `browserbase.projectId` | `string` | No | Browserbase project ID |
+| `defaults` | `object` | No | Default settings for browser sessions |
+| `defaults.timeout` | `number` | No | Page interaction timeout in seconds (default: 30) |
+| `defaults.headless` | `boolean` | No | Run browser headless (default: true, local only) |
+| `defaults.viewport` | `object` | No | Default viewport `{ width, height }` (default: 1280x720) |
 
 ### sandbox
 

@@ -1,0 +1,160 @@
+---
+title: Browser Tool
+description: Automate web browsers with natural language via Stagehand
+---
+
+The `browser` tool gives the agent session-based browser automation powered by [Stagehand](https://github.com/browserbasehq/stagehand). It uses a single tool with an `action` dispatch pattern -- one tool, 7 actions.
+
+The agent can open browser sessions, navigate pages, interact with elements using natural language, extract structured data, and take screenshots. Sessions auto-expire after a configurable TTL (default: 120s) to prevent resource leaks.
+
+## Configuration
+
+Add `tools.browser` to your `augure.json5`:
+
+### Local (Playwright)
+
+```json5
+{
+  tools: {
+    browser: {
+      provider: "local",
+      defaults: {
+        headless: true,
+        timeout: 30,
+        viewport: { width: 1280, height: 720 },
+      },
+    },
+  },
+}
+```
+
+### Cloud (Browserbase)
+
+```json5
+{
+  tools: {
+    browser: {
+      provider: "browserbase",
+      browserbase: {
+        apiKey: "${BROWSERBASE_API_KEY}",
+        projectId: "${BROWSERBASE_PROJECT_ID}",  // optional
+      },
+      defaults: {
+        timeout: 30,
+      },
+    },
+  },
+}
+```
+
+When using `local` provider, [Playwright](https://playwright.dev) must be installed (`npx playwright install chromium`).
+
+## Actions
+
+| Action | Required Params | Description |
+|--------|----------------|-------------|
+| `open` | (none) | Open a new browser session (optional: `url` to navigate immediately) |
+| `navigate` | `sessionId`, `url` | Navigate to a URL in an existing session |
+| `act` | `sessionId`, `instruction` | Perform an action described in natural language (optional: `variables`) |
+| `extract` | `sessionId`, `instruction` | Extract data from the page (optional: `schema` for structured output) |
+| `observe` | `sessionId`, `instruction` | List observable actions on the page matching the instruction |
+| `screenshot` | `sessionId` | Take a screenshot (returned as base64 PNG) |
+| `close` | `sessionId` | Close a browser session and release resources |
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `action` | `string` | **Required.** One of the 7 actions listed above |
+| `sessionId` | `string` | Session identifier returned by `open` |
+| `url` | `string` | URL to navigate to |
+| `instruction` | `string` | Natural language instruction for act/extract/observe |
+| `variables` | `object` | Key-value pairs for variable substitution in instructions (e.g. `%password%`) |
+| `schema` | `object` | JSON Schema for structured extraction |
+
+## Examples
+
+### Open a session and navigate
+
+```json
+{
+  "name": "browser",
+  "arguments": {
+    "action": "open",
+    "url": "https://example.com"
+  }
+}
+```
+
+Returns: `{ "sessionId": "s_1708934400000_1" }`
+
+### Interact with a page
+
+```json
+{
+  "name": "browser",
+  "arguments": {
+    "action": "act",
+    "sessionId": "s_1708934400000_1",
+    "instruction": "Click the login button"
+  }
+}
+```
+
+### Extract structured data
+
+```json
+{
+  "name": "browser",
+  "arguments": {
+    "action": "extract",
+    "sessionId": "s_1708934400000_1",
+    "instruction": "Get the product name and price",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" }
+      }
+    }
+  }
+}
+```
+
+### Use variables for sensitive data
+
+```json
+{
+  "name": "browser",
+  "arguments": {
+    "action": "act",
+    "sessionId": "s_1708934400000_1",
+    "instruction": "Type %email% in the email field and %password% in the password field",
+    "variables": {
+      "email": "user@example.com",
+      "password": "secret123"
+    }
+  }
+}
+```
+
+## Session Lifecycle
+
+1. **Open** creates a Stagehand instance and returns a `sessionId`
+2. Each action **resets the TTL timer** -- sessions stay alive while actively used
+3. Sessions **auto-expire** after the TTL (default 120s of inactivity)
+4. The agent should **close** sessions when done to free resources immediately
+5. On shutdown, **all sessions are closed** automatically
+
+## How It Works
+
+Under the hood, the browser tool delegates to [Stagehand V3](https://github.com/browserbasehq/stagehand) which combines Playwright with an LLM to understand page structure. When the agent calls `act("Click the login button")`, Stagehand uses the configured LLM model to identify the correct element and perform the action.
+
+The LLM model used by Stagehand is configured via the `llm.default` section of your config (same provider, API key, and model as your main agent LLM).
+
+## Error Handling
+
+- If the browser config is not set, the tool returns `[NOT CONFIGURED]` with a link to docs
+- If `provider` is `"browserbase"` but `browserbase.apiKey` is missing, `configCheck` warns
+- Unknown or expired session IDs return `success: false` with an error message
+- Page navigation failures and Stagehand errors are caught and returned as tool errors

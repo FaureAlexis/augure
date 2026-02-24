@@ -26,7 +26,8 @@ The codebase is a pnpm monorepo with Turborepo for task orchestration:
 | `@augure/core` | `packages/core` | Agent loop, LLM client, context assembly, config loader |
 | `@augure/memory` | `packages/memory` | FileMemoryStore, MemoryIngester, MemoryRetriever |
 | `@augure/scheduler` | `packages/scheduler` | CronScheduler, JobStore, Heartbeat, parseInterval |
-| `@augure/tools` | `packages/tools` | ToolRegistry + native tools (memory, schedule, datetime, web_search, http, email, sandbox_exec, opencode) |
+| `@augure/browser` | `packages/browser` | Stagehand wrapper: session-based browser automation (local Playwright or Browserbase cloud) |
+| `@augure/tools` | `packages/tools` | ToolRegistry + native tools (memory, schedule, datetime, web_search, http, email, github, browser, sandbox_exec, opencode) |
 | `@augure/channels` | `packages/channels` | Channel interface + Telegram implementation |
 | `@augure/sandbox` | `packages/sandbox` | Docker container pool with on-demand creation, idle caching, trust-level isolation, and automatic image provisioning |
 | `@augure/skills` | `packages/skills` | Self-generated skill system: LLM generation, sandbox execution, auto-testing, self-healing, scheduler bridge, curated hub |
