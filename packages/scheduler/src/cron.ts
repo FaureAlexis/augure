@@ -1,8 +1,14 @@
 import { createTask, validate, type ScheduledTask } from "node-cron";
-import type { Job, Scheduler } from "@augure/types";
+import type { Job, Logger, Scheduler } from "@augure/types";
+import { noopLogger } from "@augure/types";
 import type { JobStore } from "./jobs.js";
 
 type JobTriggerHandler = (job: Job) => void | Promise<void>;
+
+export interface CronSchedulerOptions {
+  store?: JobStore;
+  logger?: Logger;
+}
 
 export class CronScheduler implements Scheduler {
   private jobs = new Map<string, Job>();
@@ -11,8 +17,22 @@ export class CronScheduler implements Scheduler {
   private handlers: JobTriggerHandler[] = [];
   private persistChain: Promise<void> = Promise.resolve();
   private running = false;
+  private readonly store?: JobStore;
+  private readonly log: Logger;
 
-  constructor(private readonly store?: JobStore) {}
+  constructor(storeOrOpts?: JobStore | CronSchedulerOptions) {
+    if (storeOrOpts && "save" in storeOrOpts) {
+      // Legacy: direct JobStore argument
+      this.store = storeOrOpts as JobStore;
+      this.log = noopLogger;
+    } else if (storeOrOpts) {
+      const opts = storeOrOpts as CronSchedulerOptions;
+      this.store = opts.store;
+      this.log = opts.logger ?? noopLogger;
+    } else {
+      this.log = noopLogger;
+    }
+  }
 
   onJobTrigger(handler: JobTriggerHandler): void {
     this.handlers.push(handler);
@@ -30,22 +50,28 @@ export class CronScheduler implements Scheduler {
     }
 
     this.jobs.set(job.id, job);
-    console.log(`[scheduler] Added job ${job.id} (${job.cron ? `cron: ${job.cron}` : `runAt: ${job.runAt}`})`);
+    this.log.info(`Added job ${job.id} (${job.cron ? `cron: ${job.cron}` : `runAt: ${job.runAt}`})`);
 
     if (job.enabled && job.cron) {
       const task = createTask(job.cron, () => {
-        console.log(`[scheduler] Cron fired for job ${job.id}`);
-        void this.executeHandlers(job);
+        this.log.info(`Cron fired for job ${job.id}`);
+        this.executeHandlers(job).catch((err) =>
+          this.log.error(`Cron job ${job.id} handler failed:`, err),
+        );
       });
       if (this.running) {
         task.start();
-        console.log(`[scheduler] Started cron task for ${job.id} immediately (scheduler already running)`);
+        this.log.debug(`Started cron task for ${job.id} immediately (scheduler already running)`);
       }
       this.tasks.set(job.id, task);
     }
 
-    if (this.running && job.enabled && job.runAt && !job.cron) {
-      this.scheduleOneShot(job);
+    if (job.enabled && job.runAt && !job.cron) {
+      if (this.running) {
+        this.scheduleOneShot(job);
+      } else {
+        this.log.warn(`Scheduler not running — one-shot job ${job.id} will be scheduled on start()`);
+      }
     }
 
     this.persist();
@@ -63,7 +89,7 @@ export class CronScheduler implements Scheduler {
       this.timers.delete(id);
     }
     this.jobs.delete(id);
-    console.log(`[scheduler] Removed job ${id}`);
+    this.log.debug(`Removed job ${id}`);
     this.persist();
   }
 
@@ -82,11 +108,11 @@ export class CronScheduler implements Scheduler {
   async loadPersistedJobs(): Promise<void> {
     if (!this.store) return;
     const jobs = await this.store.load();
-    console.log(`[scheduler] Loading ${jobs.length} persisted jobs`);
+    this.log.info(`Loading ${jobs.length} persisted jobs`);
     for (const job of jobs) {
       // Skip one-shot jobs whose date has already passed
       if (job.runAt && Date.parse(job.runAt) <= Date.now()) {
-        console.log(`[scheduler] Skipping expired one-shot job ${job.id} (runAt: ${job.runAt})`);
+        this.log.debug(`Skipping expired one-shot job ${job.id} (runAt: ${job.runAt})`);
         continue;
       }
       this.addJob(job);
@@ -95,10 +121,10 @@ export class CronScheduler implements Scheduler {
 
   start(): void {
     this.running = true;
-    console.log(`[scheduler] Starting with ${this.tasks.size} cron tasks and ${this.handlers.length} handlers`);
+    this.log.info(`Starting with ${this.tasks.size} cron tasks and ${this.handlers.length} handlers`);
     for (const [id, task] of this.tasks) {
       task.start();
-      console.log(`[scheduler] Started cron task: ${id}`);
+      this.log.debug(`Started cron task: ${id}`);
     }
     // Schedule one-shot jobs
     for (const job of this.jobs.values()) {
@@ -109,6 +135,7 @@ export class CronScheduler implements Scheduler {
   }
 
   stop(): void {
+    this.log.info("Scheduler stopped");
     this.running = false;
     for (const task of this.tasks.values()) {
       task.stop();
@@ -122,18 +149,18 @@ export class CronScheduler implements Scheduler {
   private scheduleOneShot(job: Job): void {
     const delayMs = Date.parse(job.runAt!) - Date.now();
     if (delayMs <= 0) {
-      console.log(`[scheduler] One-shot job ${job.id} already expired (delay: ${delayMs}ms), skipping`);
+      this.log.warn(`One-shot job ${job.id} already expired (delay: ${delayMs}ms), skipping`);
       return;
     }
 
-    console.log(`[scheduler] Scheduled one-shot job ${job.id} in ${Math.round(delayMs / 1000)}s (${job.runAt})`);
+    this.log.info(`Scheduled one-shot job ${job.id} in ${Math.round(delayMs / 1000)}s (${job.runAt})`);
 
     const timer = setTimeout(() => {
-      console.log(`[scheduler] One-shot job ${job.id} firing now`);
+      this.log.info(`One-shot job ${job.id} firing now`);
       this.timers.delete(job.id);
-      void this.executeHandlers(job).then(() => {
-        this.removeJob(job.id);
-      });
+      this.executeHandlers(job)
+        .then(() => this.removeJob(job.id))
+        .catch((err) => this.log.error(`One-shot job ${job.id} handler failed:`, err));
     }, delayMs);
 
     this.timers.set(job.id, timer);
@@ -148,7 +175,7 @@ export class CronScheduler implements Scheduler {
   }
 
   private async executeHandlers(job: Job): Promise<void> {
-    console.log(`[scheduler] Executing ${this.handlers.length} handlers for job ${job.id}`);
+    this.log.debug(`Executing ${this.handlers.length} handlers for job ${job.id}`);
     for (const handler of this.handlers) {
       await handler(job);
     }
