@@ -19,6 +19,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@augure/browser": "workspace:*",
     "@augure/channels": "workspace:*",
     "@augure/code-mode": "workspace:*",
     "@augure/memory": "workspace:*",

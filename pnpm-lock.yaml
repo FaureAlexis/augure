@@ -200,6 +200,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@augure/browser':
+        specifier: workspace:*
+        version: link:../browser
       '@augure/channels':
         specifier: workspace:*
         version: link:../channels

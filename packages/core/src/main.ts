@@ -20,7 +20,9 @@ import {
   sandboxExecTool,
   opencodeTool,
   githubTool,
+  createBrowserTool,
 } from "@augure/tools";
+import { BrowserSessionManager } from "@augure/browser";
 import Dockerode from "dockerode";
 import { DockerContainerPool, ensureImage } from "@augure/sandbox";
 import {
@@ -139,9 +141,28 @@ export async function startAgent(
   tools.register(opencodeTool);
   tools.register(githubTool);
 
+  // Browser tool (optional)
+  let browserManager: BrowserSessionManager | undefined;
+  if (config.tools?.browser) {
+    const browserLlm = config.llm.coding ?? config.llm.default;
+    browserManager = new BrowserSessionManager({
+      config: config.tools.browser,
+      llm: {
+        provider: browserLlm.provider ?? config.llm.default.provider,
+        apiKey: browserLlm.apiKey ?? config.llm.default.apiKey,
+        model: browserLlm.model ?? config.llm.default.model,
+        maxTokens: browserLlm.maxTokens ?? config.llm.default.maxTokens,
+      },
+      ttlMs: 120_000,
+      logger: log.child("browser"),
+    });
+    tools.register(createBrowserTool(browserManager));
+    log.info("Browser tool registered", { provider: config.tools.browser.provider });
+  }
+
   const jobStorePath = resolve(configPath, "..", "jobs.json");
   const jobStore = new JobStore(jobStorePath);
-  const scheduler = new CronScheduler(jobStore);
+  const scheduler = new CronScheduler({ store: jobStore, logger: log.child("scheduler") });
 
   // Load persisted jobs from disk
   await scheduler.loadPersistedJobs();
@@ -512,6 +533,7 @@ export async function startAgent(
     heartbeat.stop();
     scheduler.stop();
     if (telegram) await telegram.stop();
+    if (browserManager) await browserManager.closeAll();
     await pool.destroyAll();
     await audit.close();
     log.info("All containers destroyed");

@@ -113,6 +113,29 @@ const AppConfigSchema = z.object({
       })
       .optional(),
     github: z.object({ token: z.string() }).optional(),
+    browser: z
+      .object({
+        provider: z.enum(["local", "browserbase"]),
+        browserbase: z
+          .object({
+            apiKey: z.string().min(1),
+            projectId: z.string().optional(),
+          })
+          .optional(),
+        defaults: z
+          .object({
+            timeout: z.number().int().positive().optional(),
+            headless: z.boolean().optional(),
+            viewport: z
+              .object({
+                width: z.number().int().positive(),
+                height: z.number().int().positive(),
+              })
+              .optional(),
+          })
+          .optional(),
+      })
+      .optional(),
   }),
   security: z.object({
     sandboxOnly: z.boolean(),
