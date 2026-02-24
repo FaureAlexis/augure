@@ -1,3 +1,4 @@
+import type { V3Options } from "@browserbasehq/stagehand";
 import type { BrowserConfig, LLMModelConfig } from "@augure/types";
 
 const PROVIDER_BASE_URLS: Record<string, string> = {
@@ -6,18 +7,7 @@ const PROVIDER_BASE_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
 };
 
-export interface StagehandConfig {
-  env: "LOCAL" | "BROWSERBASE";
-  apiKey?: string;
-  projectId?: string;
-  model: { modelName: string; apiKey: string; baseURL?: string };
-  localBrowserLaunchOptions?: {
-    headless: boolean;
-    viewport: { width: number; height: number };
-  };
-  domSettleTimeout: number;
-  verbose: 0;
-}
+export type StagehandConfig = V3Options;
 
 export function createStagehandConfig(
   config: BrowserConfig,
@@ -43,5 +33,6 @@ export function createStagehandConfig(
         : undefined,
     domSettleTimeout: (config.defaults?.timeout ?? 30) * 1000,
     verbose: 0,
+    disablePino: true,
   };
 }
