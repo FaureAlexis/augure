@@ -6,6 +6,7 @@ import { FileAuditLogger, NullAuditLogger } from "./audit.js";
 import { handleCommand } from "./commands.js";
 import { PersonaResolver } from "./persona.js";
 import { ContextGuard } from "./context-guard.js";
+import { ApprovalGate } from "./approval.js";
 import { createLogger } from "./logger.js";
 import { TelegramChannel } from "@augure/channels";
 import {
@@ -354,6 +355,19 @@ export async function startAgent(
     ? BASE_SYSTEM_PROMPT + SKILLS_PROMPT
     : BASE_SYSTEM_PROMPT;
 
+  // Approval gate (channel-agnostic)
+  const activeChannel = telegram as import("@augure/types").Channel | undefined;
+  const approvalGate = config.approval?.enabled && activeChannel
+    ? new ApprovalGate({
+        channel: activeChannel,
+        timeoutMs: config.approval.timeoutMs,
+        logger: log.child("approval"),
+      })
+    : undefined;
+  if (approvalGate) {
+    log.info(`Approval gate enabled (timeout: ${config.approval!.timeoutMs ?? 120_000}ms)`);
+  }
+
   const agent = new Agent({
     llm,
     tools,
@@ -366,6 +380,7 @@ export async function startAgent(
     modelName: config.llm.default.model,
     logger: log.child("agent"),
     codeModeExecutor,
+    approvalGate,
   });
 
   // Set up heartbeat

@@ -8,6 +8,7 @@ import { summarize } from "./audit.js";
 import type { AuditLogger } from "./audit.js";
 import type { ContextGuard } from "./context-guard.js";
 import type { AgentState } from "./commands.js";
+import type { ApprovalGate } from "./approval.js";
 
 export interface AgentConfig {
   llm: LLMClient;
@@ -23,6 +24,7 @@ export interface AgentConfig {
   modelName?: string;
   logger?: Logger;
   codeModeExecutor?: import("@augure/code-mode").CodeModeExecutor;
+  approvalGate?: ApprovalGate;
 }
 
 export class Agent {
@@ -169,6 +171,22 @@ export class Agent {
       for (const toolCall of response.toolCalls) {
         const toolStart = Date.now();
         this.log.debug(`Tool: ${toolCall.name}`);
+
+        // Check if tool requires approval
+        const registeredTool = this.config.tools.get(toolCall.name);
+        if (registeredTool?.riskLevel === "high" && this.config.approvalGate) {
+          const approved = await this.config.approvalGate.request(
+            incoming.userId, toolCall.name, toolCall.arguments,
+          );
+          if (!approved) {
+            history.push({
+              role: "tool",
+              content: "Tool call rejected by user.",
+              toolCallId: toolCall.id,
+            });
+            continue;
+          }
+        }
 
         let result: import("@augure/types").ToolResult;
         if (codeModeTool && toolCall.name === "execute_code") {

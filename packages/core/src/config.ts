@@ -190,6 +190,12 @@ const AppConfigSchema = z.object({
       memoryLimit: z.number().int().positive().default(128),
     })
     .optional(),
+  approval: z
+    .object({
+      enabled: z.boolean(),
+      timeoutMs: z.number().int().positive().default(120_000),
+    })
+    .optional(),
 });
 
 function interpolateEnvVars(raw: string): string {
