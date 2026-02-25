@@ -18,3 +18,5 @@ export { VersionChecker } from "./version-checker.js";
 export type { VersionCheckerConfig, UpdateCheckResult } from "./version-checker.js";
 export { createLogger } from "./logger.js";
 export type { CreateLoggerOptions } from "./logger.js";
+export { ApprovalGate } from "./approval.js";
+export type { ApprovalGateConfig } from "./approval.js";
