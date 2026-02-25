@@ -111,6 +111,7 @@ export function createSkillTools(deps: SkillToolsDeps): NativeTool[] {
   const manageSkillTool: NativeTool = {
     name: "manage_skill",
     description: "Manage a skill: pause, resume, or delete it",
+    riskLevel: "high",
     parameters: {
       type: "object",
       properties: {

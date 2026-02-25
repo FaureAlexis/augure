@@ -4,6 +4,7 @@ export const sandboxExecTool: NativeTool = {
   name: "sandbox_exec",
   description:
     "Execute a shell command in an isolated Docker container. Returns stdout, stderr, and exit code.",
+  riskLevel: "high",
   parameters: {
     type: "object",
     properties: {

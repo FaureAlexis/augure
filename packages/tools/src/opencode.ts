@@ -8,6 +8,7 @@ export const opencodeTool: NativeTool = {
   name: "opencode",
   description:
     "Run a code agent (claude-code, opencode, codex CLI) in a Docker container to perform a coding task.",
+  riskLevel: "high",
   configCheck: (ctx) =>
     ctx.config.sandbox.codeAgent
       ? null
