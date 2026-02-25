@@ -33,9 +33,9 @@ function mockPool(container: Container): ContainerPool {
   } as unknown as ContainerPool;
 }
 
-function createConfig(pool: ContainerPool) {
+function createConfig(pool: ContainerPool, registry?: ToolRegistry) {
   return {
-    registry: new ToolRegistry(),
+    registry: registry ?? new ToolRegistry(),
     pool,
     timeout: 120,
     memoryLimit: "512m",
@@ -55,6 +55,7 @@ describe("DockerExecutor", () => {
       { stdout: "", stderr: "", exitCode: 0 }, // mkdir
       { stdout: "", stderr: "", exitCode: 0 }, // write user-code.js
       { stdout: "", stderr: "", exitCode: 0 }, // write harness.ts
+      { stdout: "", stderr: "", exitCode: 0 }, // bridge poll: ls (no files)
       { stdout: jsonOutput, stderr: "", exitCode: 0 }, // npx tsx
     ]);
     const pool = mockPool(container);
@@ -72,7 +73,6 @@ describe("DockerExecutor", () => {
     expect(pool.acquire).toHaveBeenCalledWith(
       expect.objectContaining({ trust: "sandboxed" }),
     );
-    expect(container.exec).toHaveBeenCalledTimes(4);
 
     // Verify base64 file injection pattern for user code
     const execCalls = (container.exec as ReturnType<typeof vi.fn>).mock.calls;
@@ -83,7 +83,6 @@ describe("DockerExecutor", () => {
     expect(execCalls[2][0]).toMatch(
       /sh -c 'echo ".*" \| base64 -d > \/workspace\/harness\.ts'/,
     );
-    expect(execCalls[3][0]).toBe("npx tsx /workspace/harness.ts");
 
     // Verify container was released
     expect(pool.release).toHaveBeenCalledWith(container);
@@ -94,6 +93,7 @@ describe("DockerExecutor", () => {
       { stdout: "", stderr: "", exitCode: 0 }, // mkdir
       { stdout: "", stderr: "", exitCode: 0 }, // write user-code.js
       { stdout: "", stderr: "", exitCode: 0 }, // write harness.ts
+      { stdout: "", stderr: "", exitCode: 0 }, // bridge poll: ls
       { stdout: "", stderr: "SyntaxError: unexpected token", exitCode: 1 }, // npx tsx
     ]);
     const pool = mockPool(container);
@@ -112,7 +112,7 @@ describe("DockerExecutor", () => {
       { stdout: "", stderr: "", exitCode: 0 }, // write user-code.js
       { stdout: "", stderr: "", exitCode: 0 }, // write harness.ts
     ]);
-    // Override the 4th call to throw
+    // Override to throw on the 4th+ call
     let callCount = 0;
     (container.exec as ReturnType<typeof vi.fn>).mockImplementation(
       async () => {
@@ -162,6 +162,7 @@ describe("DockerExecutor", () => {
       { stdout: "", stderr: "", exitCode: 0 },
       { stdout: "", stderr: "", exitCode: 0 },
       { stdout: "", stderr: "", exitCode: 0 },
+      { stdout: "", stderr: "", exitCode: 0 }, // bridge poll: ls
       { stdout: jsonOutput, stderr: "", exitCode: 0 },
     ]);
     const pool = mockPool(container);
@@ -186,6 +187,7 @@ describe("DockerExecutor", () => {
       { stdout: "", stderr: "", exitCode: 0 },
       { stdout: "", stderr: "", exitCode: 0 },
       { stdout: "", stderr: "", exitCode: 0 },
+      { stdout: "", stderr: "", exitCode: 0 }, // bridge poll
       {
         stdout: "some npm warning\n" + jsonOutput,
         stderr: "",
@@ -213,6 +215,7 @@ describe("DockerExecutor", () => {
       { stdout: "", stderr: "", exitCode: 0 },
       { stdout: "", stderr: "", exitCode: 0 },
       { stdout: "", stderr: "", exitCode: 0 },
+      { stdout: "", stderr: "", exitCode: 0 }, // bridge poll
       { stdout: jsonOutput, stderr: "", exitCode: 0 },
     ]);
     const pool = mockPool(container);
@@ -223,5 +226,129 @@ describe("DockerExecutor", () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain("ReferenceError");
     expect(result.logs).toEqual(["before error"]);
+  });
+
+  it("should execute tool calls via file-based bridge", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "web_search",
+      description: "search the web",
+      parameters: {},
+      execute: async (params) => ({
+        success: true,
+        output: `Results for: ${(params as { query: string }).query}`,
+      }),
+    });
+
+    const bridgeReq = JSON.stringify({ id: "1", tool: "web_search", args: { query: "test" } });
+    const harnessOutput = JSON.stringify({
+      success: true,
+      output: "search done",
+      logs: [],
+      toolCalls: 1,
+    });
+
+    // Use command-based routing since bridge poll and harness run concurrently
+    let lsCallCount = 0;
+    const container = {
+      id: "bridge-container",
+      status: "idle",
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "mkdir -p /workspace") return { stdout: "", stderr: "", exitCode: 0 };
+        // npx tsx must be checked before harness.ts since it contains "harness.ts"
+        if (cmd.startsWith("npx tsx")) return { stdout: harnessOutput, stderr: "", exitCode: 0 };
+        if (cmd.includes("user-code.js")) return { stdout: "", stderr: "", exitCode: 0 };
+        if (cmd.includes("harness.ts")) return { stdout: "", stderr: "", exitCode: 0 };
+        if (cmd.startsWith("ls /workspace/.bridge-req")) {
+          lsCallCount++;
+          if (lsCallCount === 1) return { stdout: "/workspace/.bridge-req-1.json\n", stderr: "", exitCode: 0 };
+          return { stdout: "", stderr: "", exitCode: 0 };
+        }
+        if (cmd.startsWith("cat /workspace/.bridge-req")) return { stdout: bridgeReq, stderr: "", exitCode: 0 };
+        if (cmd.includes("bridge-resp")) return { stdout: "", stderr: "", exitCode: 0 };
+        if (cmd.startsWith("rm ")) return { stdout: "", stderr: "", exitCode: 0 };
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }),
+      stop: vi.fn(async () => {}),
+    } as unknown as Container;
+
+    const pool = mockPool(container);
+    const executor = new DockerExecutor(createConfig(pool, registry));
+
+    const result = await executor.execute('const r = await api.web_search({ query: "test" }); return "search done";');
+
+    expect(result.success).toBe(true);
+    expect(result.output).toBe("search done");
+    expect(result.toolCalls).toBe(1);
+    expect(pool.release).toHaveBeenCalledWith(container);
+  });
+
+  it("should handle multiple bridge requests in sequence", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "tool_a",
+      description: "tool A",
+      parameters: {},
+      execute: async () => ({ success: true, output: "result_a" }),
+    });
+    registry.register({
+      name: "tool_b",
+      description: "tool B",
+      parameters: {},
+      execute: async () => ({ success: true, output: "result_b" }),
+    });
+
+    const reqA = JSON.stringify({ id: "1", tool: "tool_a", args: {} });
+    const reqB = JSON.stringify({ id: "2", tool: "tool_b", args: {} });
+    const harnessOutput = JSON.stringify({
+      success: true,
+      output: "both done",
+      logs: [],
+      toolCalls: 2,
+    });
+
+    // Use command-based routing with a queue for ls results
+    const lsResults = [
+      "/workspace/.bridge-req-1.json\n",
+      "/workspace/.bridge-req-2.json\n",
+    ];
+    let lsCallCount = 0;
+    const catResults: Record<string, string> = {
+      "cat /workspace/.bridge-req-1.json": reqA,
+      "cat /workspace/.bridge-req-2.json": reqB,
+    };
+
+    const container = {
+      id: "multi-bridge",
+      status: "idle",
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "mkdir -p /workspace") return { stdout: "", stderr: "", exitCode: 0 };
+        // npx tsx must be checked before harness.ts since it contains "harness.ts"
+        if (cmd.startsWith("npx tsx")) return { stdout: harnessOutput, stderr: "", exitCode: 0 };
+        if (cmd.includes("user-code.js")) return { stdout: "", stderr: "", exitCode: 0 };
+        if (cmd.includes("harness.ts")) return { stdout: "", stderr: "", exitCode: 0 };
+        if (cmd.startsWith("ls /workspace/.bridge-req")) {
+          const stdout = lsResults[lsCallCount] ?? "";
+          lsCallCount++;
+          return { stdout, stderr: "", exitCode: 0 };
+        }
+        if (cmd.startsWith("cat /workspace/.bridge-req")) {
+          return { stdout: catResults[cmd] ?? "", stderr: "", exitCode: 0 };
+        }
+        if (cmd.includes("bridge-resp")) return { stdout: "", stderr: "", exitCode: 0 };
+        if (cmd.startsWith("rm ")) return { stdout: "", stderr: "", exitCode: 0 };
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }),
+      stop: vi.fn(async () => {}),
+    } as unknown as Container;
+
+    const pool = mockPool(container);
+    const executor = new DockerExecutor(createConfig(pool, registry));
+
+    const result = await executor.execute("await api.tool_a({}); await api.tool_b({}); return 'both done';");
+
+    expect(result.success).toBe(true);
+    expect(result.output).toBe("both done");
+    expect(result.toolCalls).toBe(2);
   });
 });
