@@ -136,3 +136,9 @@ export interface CodeModeConfig {
   /** Memory limit in megabytes (VM executor only) */
   memoryLimit: number;
 }
+
+export interface ApprovalConfig {
+  enabled: boolean;
+  /** Timeout in milliseconds before auto-rejecting. Default: 120_000 */
+  timeoutMs?: number;
+}

@@ -11,6 +11,7 @@ import type {
   PersonaConfig,
   UpdatesConfig,
   CodeModeConfig,
+  ApprovalConfig,
 } from "./config.js";
 import type { SkillsConfig } from "./skills.js";
 import type { MemoryStore } from "./memory.js";
@@ -36,6 +37,8 @@ export interface NativeTool {
   execute: (params: unknown, ctx: ToolContext) => Promise<ToolResult>;
   /** Return a warning string when this tool is not configured (appended to description for the LLM). Return null if configured. */
   configCheck?: (ctx: ToolContext) => string | null;
+  /** When set to "high", the agent will ask the user for approval before executing. */
+  riskLevel?: "high";
 }
 
 export interface ToolContext {
@@ -59,4 +62,5 @@ export interface AppConfig {
   persona?: PersonaConfig;
   updates?: UpdatesConfig;
   codeMode?: CodeModeConfig;
+  approval?: ApprovalConfig;
 }
