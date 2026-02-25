@@ -1,5 +1,12 @@
 # @augure/sandbox
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [c19fca6]
+  - @augure/types@0.5.0
+
 ## 0.1.3
 
 ### Patch Changes

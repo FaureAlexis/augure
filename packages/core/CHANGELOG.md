@@ -1,5 +1,39 @@
 # @augure/core
 
+## 0.8.0
+
+### Minor Changes
+
+- c19fca6: Add tiered approval for high-risk tools and file-based Docker bridge for code-mode tool calls.
+
+  **Tiered Approval:**
+
+  - New `riskLevel` field on `NativeTool` — tools marked `"high"` require explicit user approval
+  - Channel-agnostic `ApprovalGate` with timeout auto-reject and fallback auto-approve
+  - Telegram implementation using InlineKeyboard approve/reject buttons
+  - `sandbox_exec`, `opencode`, and `manage_skill` marked as high-risk
+  - Configurable via `approval.enabled` and `approval.timeoutMs` in augure.json5
+
+  **Docker Code-Mode Bridge:**
+
+  - Real tool execution from Docker containers via file-based bridge
+  - Container harness writes `.bridge-req-{id}.json`, host polls and responds with `.bridge-resp-{id}.json`
+  - 120s timeout prevents infinite poll inside container
+  - Atomic temp+mv writes avoid partial reads
+
+### Patch Changes
+
+- Updated dependencies [c19fca6]
+  - @augure/types@0.5.0
+  - @augure/channels@0.2.0
+  - @augure/tools@0.4.1
+  - @augure/skills@0.1.5
+  - @augure/code-mode@0.2.0
+  - @augure/browser@0.1.2
+  - @augure/memory@0.0.7
+  - @augure/sandbox@0.1.4
+  - @augure/scheduler@0.1.5
+
 ## 0.7.1
 
 ### Patch Changes
