@@ -1,5 +1,5 @@
-import { Bot } from "grammy";
-import type { Channel, IncomingMessage, OutgoingMessage, Logger } from "@augure/types";
+import { Bot, InlineKeyboard } from "grammy";
+import type { Channel, IncomingMessage, OutgoingMessage, Logger, ApprovalResponse, InlineButton } from "@augure/types";
 import { noopLogger } from "@augure/types";
 import { createOutgoingPipeline } from "../pipeline.js";
 import { createSplitMessageMiddleware } from "../middleware/split-message.js";
@@ -19,6 +19,7 @@ export class TelegramChannel implements Channel {
   private bot: Bot;
   private allowedUsers: Set<number>;
   private handlers: ((message: IncomingMessage) => Promise<void>)[] = [];
+  private approvalHandlers: ((response: ApprovalResponse) => void)[] = [];
   private sendPipeline: ((message: OutgoingMessage) => Promise<void>) | undefined;
   private readonly log: Logger;
 
@@ -64,6 +65,39 @@ export class TelegramChannel implements Channel {
       this.handlers,
       (userId, ts) => this.handleRejected(userId, Math.floor(ts.getTime() / 1000), config.rejectMessage),
     );
+
+    // Approval callback handler
+    this.bot.on("callback_query:data", async (ctx) => {
+      if (!this.isUserAllowed(ctx.from.id)) {
+        await ctx.answerCallbackQuery({ text: "Not authorized" });
+        return;
+      }
+
+      const data = ctx.callbackQuery.data;
+      const match = /^(approve|reject):(.+)$/.exec(data);
+      if (!match) return;
+
+      const [, action, requestId] = match;
+      const approved = action === "approve";
+      const userId = String(ctx.from.id);
+
+      await ctx.answerCallbackQuery({ text: approved ? "Approved" : "Rejected" });
+
+      // Edit the original message to show result
+      try {
+        await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+        const originalText = (ctx.callbackQuery.message && "text" in ctx.callbackQuery.message)
+          ? ctx.callbackQuery.message.text ?? ""
+          : "";
+        await ctx.editMessageText(`${originalText}\n\n${approved ? "Approved" : "Rejected"}`);
+      } catch {
+        // Best effort — message might be too old to edit
+      }
+
+      for (const handler of this.approvalHandlers) {
+        handler({ requestId: requestId!, approved, userId });
+      }
+    });
 
     // Build outgoing pipeline: split raw markdown first, then convert + send
     const convertAndSend = async (msg: OutgoingMessage): Promise<void> => {
@@ -124,5 +158,19 @@ export class TelegramChannel implements Channel {
 
   async send(message: OutgoingMessage): Promise<void> {
     await this.sendPipeline!(message);
+  }
+
+  async sendApprovalRequest(userId: string, text: string, buttons: InlineButton[], _requestId: string): Promise<void> {
+    const keyboard = new InlineKeyboard();
+    for (const btn of buttons) {
+      keyboard.text(btn.label, btn.callbackData);
+    }
+    await this.bot.api.sendMessage(Number(userId), text, {
+      reply_markup: keyboard,
+    });
+  }
+
+  onApprovalResponse(handler: (response: ApprovalResponse) => void): void {
+    this.approvalHandlers.push(handler);
   }
 }
