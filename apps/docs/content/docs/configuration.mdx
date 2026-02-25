@@ -141,6 +141,11 @@ If a referenced variable is missing, the agent refuses to start. Keep all secret
     memoryLimit: 128,
   },
 
+  approval: {
+    enabled: true,
+    timeoutMs: 120000,  // 2 minutes, auto-reject if no response
+  },
+
   security: {
     sandboxOnly: true,
     allowedHosts: [],
@@ -328,6 +333,19 @@ Optional. When present, enables [Code Mode](/docs/code-mode) -- the LLM writes T
 | `runtime` | `"vm" \| "docker" \| "auto"` | `"auto"` | Execution runtime. `vm` = Node.js vm module (fast), `docker` = container sandbox (isolated), `auto` = VM with Docker fallback |
 | `timeout` | `number` | `30` | Maximum execution time in seconds |
 | `memoryLimit` | `number` | `128` | Memory limit in MB (VM runtime only; Docker uses `sandbox.defaults.memoryLimit`) |
+
+### approval
+
+Optional. When enabled, tools marked with `riskLevel: "high"` require explicit user approval before execution. The agent sends an approval request via the active channel (e.g. Telegram inline buttons) and waits for a response.
+
+Currently, three tools are high-risk: `sandbox_exec`, `opencode`, and `manage_skill`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `boolean` | -- | Enable the approval gate |
+| `timeoutMs` | `number` | `120000` | Milliseconds to wait before auto-rejecting |
+
+If the channel does not support interactive approval (e.g. not yet implemented for WhatsApp/web), high-risk tools are auto-approved with a warning log.
 
 ### security
 

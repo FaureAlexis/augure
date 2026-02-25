@@ -57,7 +57,7 @@ When [Code Mode](/docs/code-mode) is enabled (`codeMode` in config), the agent r
 
 ### Tool Execution
 
-All tools run in-process via the `ToolRegistry`. Two tools (`sandbox_exec` and `opencode`) acquire Docker containers from the pool for isolated execution. The LLM receives tool schemas as function definitions and returns structured tool calls. The registry dispatches to the correct tool:
+All tools run in-process via the `ToolRegistry`. Two tools (`sandbox_exec` and `opencode`) acquire Docker containers from the pool for isolated execution. The LLM receives tool schemas as function definitions and returns structured tool calls. Tools with `riskLevel: "high"` are gated behind the `ApprovalGate` — the agent sends an approval request via the active channel (e.g. Telegram inline buttons) and waits for the user to approve or reject before executing. The registry dispatches to the correct tool:
 
 ```typescript
 for (const toolCall of response.toolCalls) {

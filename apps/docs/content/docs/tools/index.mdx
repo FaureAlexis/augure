@@ -16,6 +16,7 @@ export interface NativeTool {
   parameters: Record<string, unknown>;  // JSON Schema
   execute: (params: unknown, ctx: ToolContext) => Promise<ToolResult>;
   configCheck?: (ctx: ToolContext) => string | null;  // null = configured, string = warning
+  riskLevel?: "high";  // requires user approval before execution
 }
 
 export interface ToolResult {
@@ -97,12 +98,22 @@ Augure provides 16 native tools across several packages:
 | [`email`](/docs/tools/email) | Read, search, and send emails via IMAP/SMTP | [Email Tool](/docs/tools/email) |
 | [`github`](/docs/tools/github) | Interact with GitHub issues, PRs, repos, releases, and search | [GitHub Tool](/docs/tools/github) |
 | [`browser`](/docs/tools/browser) | Automate web browsers with natural language (Stagehand) | [Browser Tool](/docs/tools/browser) |
-| `sandbox_exec` | Execute a command in a Docker sandbox container | Requires sandbox config |
-| `opencode` | Run a coding agent (claude-code, opencode) in a container | Requires sandbox.codeAgent config |
+| `sandbox_exec` | Execute a command in a Docker sandbox container | Requires sandbox config. **High-risk** — requires approval |
+| `opencode` | Run a coding agent (claude-code, opencode) in a container | Requires sandbox.codeAgent config. **High-risk** — requires approval |
 
 ### Configuration Awareness
 
 Tools that require configuration (like `web_search`, `email`, `opencode`) implement a `configCheck` function. When these tools are not configured, the LLM sees a `[NOT CONFIGURED]` warning appended to their description with a link to the relevant documentation page. This way the agent can inform the user about what needs to be set up instead of failing silently.
+
+### Tiered Approval
+
+Tools with `riskLevel: "high"` require explicit user approval before execution. When the [approval gate](/docs/configuration#approval) is enabled, the agent sends an approval request to the user via the active channel (e.g. Telegram inline buttons with Approve/Reject) and waits for a response.
+
+- **Approved** — the tool executes normally
+- **Rejected** — the tool call returns "Tool call rejected by user" to the LLM
+- **Timeout** — auto-rejected after `approval.timeoutMs` (default: 2 minutes)
+
+Three tools are currently high-risk: `sandbox_exec`, `opencode`, and `manage_skill`. All other tools execute immediately without approval.
 
 ### Skill Tools (`@augure/skills`)
 
@@ -113,7 +124,7 @@ Registered when `skills` is configured. See [Skills System](/docs/skills) for de
 | `create_skill` | Generate a new skill from a natural language description |
 | `list_skills` | List all skills with status and trigger info |
 | `run_skill` | Manually trigger a skill execution by ID |
-| `manage_skill` | Pause, resume, or delete a skill |
+| `manage_skill` | Pause, resume, or delete a skill. **High-risk** — requires approval |
 | `install_skill` | Install a curated skill from the GitHub hub |
 
 ## Code Mode
@@ -143,6 +154,16 @@ while (loopCount < maxLoops) {
 
   // Execute each tool call
   for (const toolCall of response.toolCalls) {
+    // High-risk tools require user approval first
+    const tool = tools.get(toolCall.name);
+    if (tool?.riskLevel === "high" && approvalGate) {
+      const approved = await approvalGate.request(userId, toolCall.name, toolCall.arguments);
+      if (!approved) {
+        conversationHistory.push({ role: "tool", content: "Tool call rejected by user.", toolCallId: toolCall.id });
+        continue;
+      }
+    }
+
     const result = await tools.execute(toolCall.name, toolCall.arguments);
     conversationHistory.push({
       role: "tool",

@@ -61,6 +61,10 @@ When you send a photo, Augure receives it as an attachment with a `fileId`. The 
 
 Files (PDF, ZIP, etc.) are received as document attachments with filename and MIME type metadata. The caption becomes the message text, or defaults to `[Document: filename]`.
 
+### Tool Approval
+
+When the [approval gate](/docs/configuration#approval) is enabled, high-risk tool calls (`sandbox_exec`, `opencode`, `manage_skill`) trigger an inline keyboard with **Approve** and **Reject** buttons. The agent waits for the user's response before executing. If the user doesn't respond within the timeout, the tool call is auto-rejected. Only users in `allowedUsers` can respond to approval buttons.
+
 ### Reply Threading
 
 All responses are sent as quoted replies to the original message, keeping conversations organized.

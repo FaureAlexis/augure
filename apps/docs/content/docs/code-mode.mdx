@@ -109,7 +109,7 @@ graph LR
 
     subgraph Docker["Docker Runtime"]
         direction TB
-        D1["Base64 inject\ncode + harness"] --> D2["npx tsx\nin container"] --> D3["HTTP bridge\n(not yet in v1)"]
+        D1["Base64 inject\ncode + harness"] --> D2["npx tsx\nin container"] --> D3["File bridge\n(.bridge-req/resp JSON)"]
     end
 
     subgraph Auto["Auto Runtime"]
@@ -134,7 +134,8 @@ Uses Docker containers from the sandbox pool. Code is injected as base64 files a
 
 - Full filesystem and network isolation
 - Reuses the existing container pool
-- Tool calls from Docker not yet supported in v1 (stub returns error)
+- Full tool call support via file-based bridge (container writes `.bridge-req-{id}.json`, host polls and responds with `.bridge-resp-{id}.json`)
+- 120s per-tool-call timeout inside the container prevents infinite hangs
 - Best for untrusted or resource-intensive operations
 
 ### Auto (recommended)
