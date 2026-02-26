@@ -9,7 +9,7 @@ const dest = resolve(__dirname, "../content/docs/changelog.mdx");
 
 const frontmatter = `---
 title: Changelog
-description: Release history for the augure CLI
+description: Augure release history — new features, bug fixes, and breaking changes for each version of the CLI
 ---
 
 `;

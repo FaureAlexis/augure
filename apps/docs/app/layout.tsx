@@ -3,6 +3,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { DM_Sans, Instrument_Serif, IBM_Plex_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
+import { BASE_URL } from "@/lib/constants";
 import "./global.css";
 
 const dmSans = DM_Sans({
@@ -34,17 +35,20 @@ export const metadata: Metadata = {
   },
   description:
     "An open-source AI agent that runs 24/7. It sees, learns, and acts on your behalf.",
-  metadataBase: new URL("https://augure.dev"),
+  metadataBase: new URL(BASE_URL),
   openGraph: {
     title: "Augure — Your Personal AI Agent That Sees, Learns & Acts",
     description:
       "Deploy an open-source AI agent on your server in 5 minutes. It learns your preferences, connects to your apps, and acts proactively — 24/7.",
-    url: "https://augure.dev",
+    url: BASE_URL,
     siteName: "Augure",
     type: "website",
   },
   other: {
-    "og:logo": "https://augure.dev/favicon.svg",
+    "og:logo": `${BASE_URL}/favicon.svg`,
+  },
+  alternates: {
+    canonical: BASE_URL,
   },
   icons: {
     icon: "/favicon.svg",

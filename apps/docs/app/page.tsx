@@ -1,5 +1,6 @@
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { baseOptions } from "@/lib/layout.shared";
+import { BASE_URL } from "@/lib/constants";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -30,9 +31,32 @@ const features = [
   },
 ];
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Augure",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Linux, macOS",
+  description:
+    "An open-source personal AI agent that runs 24/7. It sees, learns, and acts on your behalf via Telegram, with Docker sandboxing, persistent memory, and self-improving skills.",
+  url: BASE_URL,
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  author: {
+    "@type": "Person",
+    name: "Alexis Faure",
+    url: "https://github.com/FaureAlexis",
+  },
+  codeRepository: "https://github.com/FaureAlexis/augure",
+  license: "https://opensource.org/licenses/MIT",
+};
+
 export default function Home() {
   return (
     <HomeLayout {...baseOptions()}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Hero */}
       <section className="relative flex min-h-[80vh] flex-col items-center justify-center overflow-hidden px-6 py-24 text-center">
         {/* Ambient glow */}
