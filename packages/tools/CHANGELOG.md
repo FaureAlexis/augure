@@ -1,5 +1,13 @@
 # @augure/tools
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [8a71557]
+  - @augure/types@0.6.0
+  - @augure/browser@0.1.3
+
 ## 0.4.1
 
 ### Patch Changes
