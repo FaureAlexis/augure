@@ -22,6 +22,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
     "citty": "^0.2.1",
     "dockerode": "^4.0.9",
     "esbuild": "^0.25.0",
