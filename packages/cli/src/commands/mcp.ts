@@ -15,6 +15,7 @@ import {
   sandboxExecTool,
   opencodeTool,
   githubTool,
+  createBrowserTool,
 } from "@augure/tools";
 import { FileMemoryStore } from "@augure/memory";
 import { CronScheduler, JobStore } from "@augure/scheduler";
@@ -65,6 +66,21 @@ export const mcpCommand = defineCommand({
     tools.register(sandboxExecTool);
     tools.register(opencodeTool);
     tools.register(githubTool);
+
+    // Register browser tool if configured
+    if (config.tools?.browser) {
+      const { BrowserSessionManager } = await import("@augure/browser");
+      const browserLlm = {
+        ...config.llm.default,
+        ...config.llm.coding,
+      };
+      const browserManager = new BrowserSessionManager({
+        config: config.tools.browser,
+        llm: browserLlm,
+        logger: log.child("browser"),
+      });
+      tools.register(createBrowserTool(browserManager));
+    }
 
     const memoryPath = resolve(configPath, "..", config.memory.path);
     const memory = new FileMemoryStore(memoryPath);

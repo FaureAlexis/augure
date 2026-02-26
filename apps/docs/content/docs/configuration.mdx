@@ -141,6 +141,25 @@ If a referenced variable is missing, the agent refuses to start. Keep all secret
     memoryLimit: 128,
   },
 
+  persona: {
+    path: "./personas",
+  },
+
+  audit: {
+    enabled: true,
+    path: "./audit",
+  },
+
+  updates: {
+    skills: { enabled: true, checkInterval: "6h" },
+    cli: { enabled: true, checkInterval: "24h", notifyChannel: "telegram" },
+  },
+
+  mcp: {
+    enabled: true,
+    port: 3100,
+  },
+
   approval: {
     enabled: true,
     timeoutMs: 120000,  // 2 minutes, auto-reject if no response
@@ -357,6 +376,42 @@ Optional. When present, enables the built-in [MCP server](/docs/mcp) for integra
 | `port` | `number` | `3100` | HTTP port for the MCP server |
 
 The MCP server can also be started standalone via `augure mcp` (stdio transport) or enabled at runtime with `augure start --mcp`.
+
+### persona
+
+Optional. Points to a directory of persona `.md` files (with YAML frontmatter). Personas are injected into the system prompt and exposed as MCP prompts.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | `string` | Yes | Directory containing persona markdown files |
+
+### audit
+
+Optional. When enabled, the agent writes an append-only audit log of all tool calls and LLM interactions.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | `boolean` | Yes | Enable audit logging |
+| `path` | `string` | Yes | Directory for audit log files |
+
+### updates
+
+Optional. Configures automatic update checks for skills and the CLI.
+
+#### updates.skills
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `boolean` | -- | Enable automatic skill update checks |
+| `checkInterval` | `string` | -- | Interval between checks (e.g. `"1h"`, `"6h"`) |
+
+#### updates.cli
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `boolean` | -- | Enable CLI version update checks |
+| `checkInterval` | `string` | -- | Interval between checks |
+| `notifyChannel` | `string` | -- | Channel to notify about available updates |
 
 ### security
 

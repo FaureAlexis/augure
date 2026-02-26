@@ -36,6 +36,7 @@
     "@browserbasehq/stagehand": "^3.0.0"
   },
   "devDependencies": {
+    "@augure/browser": "workspace:*",
     "@augure/channels": "workspace:*",
     "@augure/core": "workspace:*",
     "@augure/memory": "workspace:*",
