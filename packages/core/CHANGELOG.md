@@ -1,5 +1,50 @@
 # @augure/core
 
+## 0.9.0
+
+### Minor Changes
+
+- 8a71557: Add CLI subcommands and MCP server
+
+  **CLI:**
+
+  - `augure stop` — graceful daemon shutdown via PID file
+  - `augure status` — read-only overview (PID, config, memory, jobs, channels, Docker, skills)
+  - `augure doctor` — validate config, Docker, LLM, and Telegram connectivity
+  - `augure memory list|show|edit` — inspect and edit memory files
+  - `augure jobs list|add|remove|run` — manage scheduled jobs
+  - `augure channels status` — check channel connectivity
+  - `augure tools list|test` — inspect and test registered tools
+  - `augure mcp` — standalone MCP server (stdio transport)
+  - `augure start --daemon` — run agent as background daemon with PID file
+  - `augure start --mcp` — enable MCP HTTP server alongside the agent
+
+  **MCP Server:**
+
+  - Tool bridge: all registered Augure tools exposed as MCP tools (including browser and skill tools)
+  - Resources: memory files (`memory://`) and scheduled jobs (`jobs://`)
+  - Prompts: persona system exposed as MCP prompts
+  - Transports: stdio (for Claude Desktop/Cursor) and HTTP (StreamableHTTP on configurable port)
+  - Path traversal protection on memory resource reads
+
+  **Types:**
+
+  - Added `McpConfig` interface (`enabled`, `port`)
+  - Added `mcp?` field to `AppConfig`
+
+### Patch Changes
+
+- Updated dependencies [8a71557]
+  - @augure/types@0.6.0
+  - @augure/browser@0.1.3
+  - @augure/channels@0.2.1
+  - @augure/code-mode@0.2.1
+  - @augure/memory@0.0.8
+  - @augure/sandbox@0.1.5
+  - @augure/scheduler@0.1.6
+  - @augure/skills@0.1.6
+  - @augure/tools@0.4.2
+
 ## 0.8.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # @augure/code-mode
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [8a71557]
+  - @augure/types@0.6.0
+  - @augure/sandbox@0.1.5
+  - @augure/tools@0.4.2
+
 ## 0.2.0
 
 ### Minor Changes
