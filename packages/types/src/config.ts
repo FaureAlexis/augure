@@ -142,3 +142,9 @@ export interface ApprovalConfig {
   /** Timeout in milliseconds before auto-rejecting. Default: 120_000 */
   timeoutMs?: number;
 }
+
+export interface McpConfig {
+  enabled: boolean;
+  /** HTTP port for MCP server. Default: 3100 */
+  port?: number;
+}

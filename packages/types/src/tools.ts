@@ -12,6 +12,7 @@ import type {
   UpdatesConfig,
   CodeModeConfig,
   ApprovalConfig,
+  McpConfig,
 } from "./config.js";
 import type { SkillsConfig } from "./skills.js";
 import type { MemoryStore } from "./memory.js";
@@ -63,4 +64,5 @@ export interface AppConfig {
   updates?: UpdatesConfig;
   codeMode?: CodeModeConfig;
   approval?: ApprovalConfig;
+  mcp?: McpConfig;
 }
