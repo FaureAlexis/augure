@@ -1,0 +1,113 @@
+---
+title: MCP Server
+description: Expose Augure's tools, memory, and personas to Claude Desktop, Cursor, and other MCP clients
+---
+
+Augure includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server. This allows MCP-compatible clients like Claude Desktop, Cursor, and others to use Augure's tools, read agent memory, browse scheduled jobs, and load persona prompts.
+
+## Transports
+
+Augure supports two MCP transports:
+
+| Transport | Command | Use case |
+|-----------|---------|----------|
+| **stdio** | `augure mcp` | Claude Desktop, Cursor, and other local MCP clients |
+| **HTTP** | `augure start --mcp` | Remote access, multi-client setups |
+
+## Stdio Transport (recommended)
+
+The stdio transport is the standard way to connect MCP clients. The client spawns the `augure mcp` process and communicates over stdin/stdout.
+
+### Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "augure": {
+      "command": "augure",
+      "args": ["mcp", "-c", "/path/to/augure.json5"]
+    }
+  }
+}
+```
+
+### Cursor
+
+Add to your Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "augure": {
+      "command": "augure",
+      "args": ["mcp", "-c", "/path/to/augure.json5"]
+    }
+  }
+}
+```
+
+## HTTP Transport
+
+When running `augure start --mcp` or setting `mcp.enabled: true` in the config, Augure starts an HTTP MCP server alongside the agent:
+
+```bash
+augure start --mcp                    # default port 3100
+```
+
+The HTTP endpoint is available at `http://localhost:3100/mcp`.
+
+### Configuration
+
+```json5
+{
+  mcp: {
+    enabled: true,
+    port: 3100,    // default
+  },
+}
+```
+
+See [Configuration](/docs/configuration) for the full config reference.
+
+## Capabilities
+
+### Tools
+
+All registered Augure tools are exposed as MCP tools. The tool list depends on your configuration:
+
+| Tool | Description |
+|------|-------------|
+| `memory_read` | Read a memory file |
+| `memory_write` | Write to a memory file |
+| `datetime` | Get current date and time |
+| `schedule` | Create or manage scheduled jobs |
+| `web_search` | Search the web (requires config) |
+| `http` | Make HTTP requests |
+| `email` | Read and send emails (requires config) |
+| `sandbox_exec` | Execute code in Docker container |
+| `opencode` | Run a coding agent in sandbox |
+| `github` | GitHub API operations (requires config) |
+| `browser` | Browser automation (requires config) |
+| Skill tools | `skill_list`, `skill_generate`, `skill_run`, etc. (when skills are configured) |
+
+### Resources
+
+MCP resources provide read access to agent data:
+
+| URI pattern | Description |
+|-------------|-------------|
+| `memory://<path>` | Memory files (markdown) |
+| `jobs://list` | All scheduled jobs (JSON) |
+| `jobs://<id>` | Single job details (JSON) |
+
+### Prompts
+
+When [personas](/docs/configuration) are configured, each persona is exposed as an MCP prompt. Clients can list available personas and load them with an optional `message` argument for context-aware persona selection.
+
+## Related
+
+- [CLI Reference](/docs/cli) -- `augure mcp` and `augure start --mcp` commands
+- [Configuration](/docs/configuration) -- the `mcp` config section
+- [Tools](/docs/tools) -- available tools reference

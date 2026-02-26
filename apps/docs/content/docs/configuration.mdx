@@ -347,6 +347,17 @@ Currently, three tools are high-risk: `sandbox_exec`, `opencode`, and `manage_sk
 
 If the channel does not support interactive approval (e.g. not yet implemented for WhatsApp/web), high-risk tools are auto-approved with a warning log.
 
+### mcp
+
+Optional. When present, enables the built-in [MCP server](/docs/mcp) for integration with Claude Desktop, Cursor, and other MCP clients.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `boolean` | -- | Enable the MCP HTTP server when the agent starts |
+| `port` | `number` | `3100` | HTTP port for the MCP server |
+
+The MCP server can also be started standalone via `augure mcp` (stdio transport) or enabled at runtime with `augure start --mcp`.
+
 ### security
 
 Global security settings.
