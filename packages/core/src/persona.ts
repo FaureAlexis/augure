@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import matter from "gray-matter";
 
-interface PersonaFrontmatter {
+export interface PersonaFrontmatter {
   id: string;
   name: string;
   triggers?: {
@@ -12,7 +12,7 @@ interface PersonaFrontmatter {
   priority?: number;
 }
 
-interface LoadedPersona {
+export interface LoadedPersona {
   meta: PersonaFrontmatter;
   body: string;
 }
@@ -49,6 +49,10 @@ export class PersonaResolver {
 
     // Sort by id for deterministic tie resolution
     this.personas.sort((a, b) => a.meta.id.localeCompare(b.meta.id));
+  }
+
+  listAll(): LoadedPersona[] {
+    return [...this.personas];
   }
 
   resolve(message: string, activeSkillId?: string): string {

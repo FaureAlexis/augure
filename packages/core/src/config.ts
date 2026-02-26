@@ -196,6 +196,12 @@ const AppConfigSchema = z.object({
       timeoutMs: z.number().int().positive().default(120_000),
     })
     .optional(),
+  mcp: z
+    .object({
+      enabled: z.boolean(),
+      port: z.number().int().positive().default(3100),
+    })
+    .optional(),
 });
 
 function interpolateEnvVars(raw: string): string {

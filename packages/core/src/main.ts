@@ -84,6 +84,7 @@ When a user asks to automate a recurring task (e.g. "check this every morning", 
 
 export interface StartAgentOptions {
   debug?: boolean;
+  mcp?: boolean;
 }
 
 function resolveLLMClient(
@@ -542,11 +543,44 @@ export async function startAgent(
     }, cliCheckMs));
   }
 
+  // MCP server (HTTP transport)
+  let mcpHttpServer: import("node:http").Server | undefined;
+  if (config.mcp?.enabled || opts?.mcp) {
+    const { createMcpServer } = await import("./mcp-server.js");
+    const { StreamableHTTPServerTransport } = await import(
+      "@modelcontextprotocol/sdk/server/streamableHttp.js"
+    );
+    const { createServer } = await import("node:http");
+    const mcpPort = config.mcp?.port ?? 3100;
+    const mcpServer = createMcpServer({
+      tools,
+      memory,
+      scheduler,
+      personaResolver,
+      logger: log.child("mcp"),
+    });
+
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID() });
+    await mcpServer.connect(transport);
+
+    mcpHttpServer = createServer(async (req, res) => {
+      if (req.url === "/mcp") {
+        await transport.handleRequest(req, res);
+      } else {
+        res.writeHead(404);
+        res.end("Not found");
+      }
+    });
+    mcpHttpServer.listen(mcpPort);
+    log.info(`MCP server listening on port ${mcpPort}`);
+  }
+
   const shutdown = async () => {
     log.info("Shutting down...");
     for (const timer of updateTimers) clearInterval(timer);
     heartbeat.stop();
     scheduler.stop();
+    if (mcpHttpServer) mcpHttpServer.close();
     if (telegram) await telegram.stop();
     if (browserManager) await browserManager.closeAll();
     await pool.destroyAll();
